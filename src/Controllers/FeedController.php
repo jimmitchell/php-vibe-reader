@@ -179,6 +179,11 @@ class FeedController
         $stmt->execute([$user['id'], $user['id']]);
         $feeds = $stmt->fetchAll();
 
+        // Format dates for JSON (convert to ISO 8601 with UTC timezone)
+        $feeds = array_map(function($feed) {
+            return \PhpRss\Utils::formatDatesForJson($feed);
+        }, $feeds);
+
         echo json_encode($feeds);
     }
 
@@ -226,6 +231,11 @@ class FeedController
         $stmt->execute([$user['id'], $feedId]);
         $items = $stmt->fetchAll();
 
+        // Format dates for JSON (convert to ISO 8601 with UTC timezone)
+        $items = array_map(function($item) {
+            return \PhpRss\Utils::formatDatesForJson($item);
+        }, $items);
+
         echo json_encode($items);
     }
 
@@ -258,6 +268,9 @@ class FeedController
             echo json_encode(['error' => 'Item not found']);
             return;
         }
+
+        // Format dates for JSON (convert to ISO 8601 with UTC timezone)
+        $item = \PhpRss\Utils::formatDatesForJson($item);
 
         echo json_encode($item);
     }

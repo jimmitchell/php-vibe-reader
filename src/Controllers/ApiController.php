@@ -31,6 +31,11 @@ class ApiController
         $stmt->execute([$user['id'], $user['id']]);
         $feeds = $stmt->fetchAll();
 
+        // Format dates for JSON (convert to ISO 8601 with UTC timezone)
+        $feeds = array_map(function($feed) {
+            return \PhpRss\Utils::formatDatesForJson($feed);
+        }, $feeds);
+
         echo json_encode($feeds);
     }
 

@@ -316,6 +316,8 @@ a.btn-icon {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    min-height: 52px;
+    box-sizing: border-box;
 }
 
 .pane-header h2 {
