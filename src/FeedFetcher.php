@@ -61,12 +61,13 @@ class FeedFetcher
             $stmt->execute([$parsed['title'], $parsed['description'], $feedId]);
 
             // Insert or update feed items
+            $dbType = Database::getDbType();
+            $insertSql = $dbType === 'pgsql'
+                ? "INSERT INTO feed_items (feed_id, title, link, content, summary, author, published_at, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (feed_id, guid) DO NOTHING"
+                : "INSERT OR IGNORE INTO feed_items (feed_id, title, link, content, summary, author, published_at, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            
             foreach ($parsed['items'] as $item) {
-                $stmt = $db->prepare("
-                    INSERT OR IGNORE INTO feed_items 
-                    (feed_id, title, link, content, summary, author, published_at, guid)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ");
+                $stmt = $db->prepare($insertSql);
                 $stmt->execute([
                     $feedId,
                     $item['title'],

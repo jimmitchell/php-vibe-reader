@@ -112,12 +112,13 @@ class FeedController
             }
 
             // Insert feed items
+            $dbType = Database::getDbType();
+            $insertSql = $dbType === 'pgsql' 
+                ? "INSERT INTO feed_items (feed_id, title, link, content, summary, author, published_at, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (feed_id, guid) DO NOTHING"
+                : "INSERT OR IGNORE INTO feed_items (feed_id, title, link, content, summary, author, published_at, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            
             foreach ($parsed['items'] as $item) {
-                $stmt = $db->prepare("
-                    INSERT OR IGNORE INTO feed_items 
-                    (feed_id, title, link, content, summary, author, published_at, guid)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ");
+                $stmt = $db->prepare($insertSql);
                 $stmt->execute([
                     $feedId,
                     $item['title'],
@@ -290,7 +291,11 @@ class FeedController
         }
 
         // Mark as read
-        $stmt = $db->prepare("INSERT OR IGNORE INTO read_items (user_id, feed_item_id) VALUES (?, ?)");
+        $dbType = Database::getDbType();
+        $insertSql = $dbType === 'pgsql'
+            ? "INSERT INTO read_items (user_id, feed_item_id) VALUES (?, ?) ON CONFLICT (user_id, feed_item_id) DO NOTHING"
+            : "INSERT OR IGNORE INTO read_items (user_id, feed_item_id) VALUES (?, ?)";
+        $stmt = $db->prepare($insertSql);
         $stmt->execute([$user['id'], $itemId]);
 
         echo json_encode(['success' => true]);
@@ -355,12 +360,11 @@ class FeedController
         }
 
         // Mark all items in the feed as read
-        $stmt = $db->prepare("
-            INSERT OR IGNORE INTO read_items (user_id, feed_item_id)
-            SELECT ?, fi.id
-            FROM feed_items fi
-            WHERE fi.feed_id = ?
-        ");
+        $dbType = Database::getDbType();
+        $insertSql = $dbType === 'pgsql'
+            ? "INSERT INTO read_items (user_id, feed_item_id) SELECT ?, fi.id FROM feed_items fi WHERE fi.feed_id = ? ON CONFLICT (user_id, feed_item_id) DO NOTHING"
+            : "INSERT OR IGNORE INTO read_items (user_id, feed_item_id) SELECT ?, fi.id FROM feed_items fi WHERE fi.feed_id = ?";
+        $stmt = $db->prepare($insertSql);
         $stmt->execute([$user['id'], $feedId]);
 
         echo json_encode(['success' => true, 'count' => $stmt->rowCount()]);

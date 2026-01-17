@@ -1,12 +1,29 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vibereader-postgres
+    environment:
+      POSTGRES_DB: vibereader
+      POSTGRES_USER: vibereader
+      POSTGRES_PASSWORD: vibereader
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vibereader"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   vibereader:
     build: .
     container_name: vibereader
     ports:
       - "8000:8000"
     volumes:
-      # Persist database and allow for code changes during development
-      - ./data:/var/www/html/data
+      # Allow for code changes during development
       - ./src:/var/www/html/src
       - ./views:/var/www/html/views
       - ./assets:/var/www/html/assets
@@ -14,6 +31,15 @@ services:
       - ./scripts:/var/www/html/scripts
     environment:
       - PHP_CLI_SERVER_WORKERS=4
+      - DB_TYPE=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=vibereader
+      - DB_USER=vibereader
+      - DB_PASSWORD=vibereader
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "php", "-r", "file_get_contents('http://localhost:8000') || exit(1)"]
@@ -21,3 +47,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+volumes:
+  postgres_data:

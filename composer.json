@@ -5,7 +5,7 @@
     "require": {
         "php": ">=8.0",
         "ext-pdo": "*",
-        "ext-pdo_sqlite": "*",
+        "ext-pdo_pgsql": "*",
         "ext-curl": "*",
         "ext-json": "*",
         "ext-simplexml": "*",

@@ -11,13 +11,13 @@ A PHP-based RSS reading platform similar to Google Reader. This application allo
   - Middle pane: Feed items
   - Right pane: Full article content
 - **Read Status Tracking**: Automatically marks items as read when viewed
-- **SQLite Database**: Lightweight database for data storage (easily extensible to MySQL/PostgreSQL)
+- **PostgreSQL Database**: Robust database for data storage (default in Docker; can fall back to SQLite for manual installation)
 - **Modern UI**: Clean, responsive design
 
 ## Requirements
 
 - PHP 8.0 or higher
-- PDO with SQLite support
+- PDO with PostgreSQL support (for Docker) or SQLite support (for manual installation)
 - cURL extension
 - JSON extension
 - SimpleXML extension
@@ -40,6 +40,8 @@ docker-compose exec vibereader php scripts/setup.php
 ```
 
 4. Access the application at `http://localhost:8000`
+
+**Note**: The Docker setup uses PostgreSQL by default. Database credentials can be customized via environment variables in `docker-compose.yml`.
 
 To stop the container:
 ```bash
@@ -124,7 +126,7 @@ php-rss/
 
 ## Database Schema
 
-The application uses SQLite with the following tables:
+The application uses PostgreSQL (when running in Docker) or SQLite (for manual installation) with the following tables:
 
 - **users**: User accounts
 - **feeds**: Subscribed feeds
@@ -133,7 +135,7 @@ The application uses SQLite with the following tables:
 
 ## Future Enhancements
 
-- Support for MySQL and PostgreSQL databases
+- Support for MySQL database (currently uses PostgreSQL in Docker)
 - Feed refresh scheduling
 - Search functionality
 - Categories/folders for feeds

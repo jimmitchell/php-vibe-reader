@@ -2,10 +2,10 @@ FROM php:8.3-cli
 
 # Install system dependencies and PHP extensions
 RUN apt-get update && apt-get install -y \
-    libsqlite3-dev \
+    libpq-dev \
     unzip \
     && docker-php-ext-install \
-    pdo_sqlite \
+    pdo_pgsql \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
