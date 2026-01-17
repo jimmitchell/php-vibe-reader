@@ -138,7 +138,6 @@ The application uses PostgreSQL (when running in Docker) or SQLite (for manual i
 - Support for MySQL database (currently uses PostgreSQL in Docker)
 - Feed refresh scheduling
 - Search functionality
-- Categories/folders for feeds
 - Keyboard shortcuts
 - Mobile-responsive design improvements
 - Export/import feed lists (OPML)

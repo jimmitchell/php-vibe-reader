@@ -1,6 +1,7 @@
 // Global state
 let currentFeedId = null;
 let currentItemId = null;
+const collapsedFolders = new Set(); // Track which folders are collapsed
 // hideReadItems is initialized from server-side script in dashboard.php
 // If not set, default to true
 if (typeof hideReadItems === 'undefined') {
@@ -51,6 +52,17 @@ function formatDate(dateString, options = {}) {
 }
 
 function setupEventListeners() {
+    // Create folder button
+    const createFolderBtn = document.getElementById('create-folder-btn');
+    if (createFolderBtn) {
+        createFolderBtn.addEventListener('click', () => {
+            const name = prompt('Enter folder name:');
+            if (name && name.trim()) {
+                createFolder(name.trim());
+            }
+        });
+    }
+
     // Add feed button
     const addFeedBtn = document.getElementById('add-feed-btn');
     const modal = document.getElementById('add-feed-modal');
@@ -139,9 +151,25 @@ function setupEventListeners() {
 
 async function loadFeeds() {
     try {
-        const response = await fetch('/api/feeds');
-        const feeds = await response.json();
-        renderFeeds(feeds);
+        // Fetch both feeds and folders
+        const [feedsResponse, foldersResponse] = await Promise.all([
+            fetch('/api/feeds'),
+            fetch('/folders')
+        ]);
+        
+        if (!feedsResponse.ok || !foldersResponse.ok) {
+            throw new Error('Failed to fetch feeds or folders');
+        }
+        
+        const feeds = await feedsResponse.json();
+        const foldersResult = await foldersResponse.json();
+        const folders = foldersResult.success ? (foldersResult.folders || []) : [];
+        
+        // Merge feeds with folders to show empty folders too
+        renderFeeds(feeds, folders);
+        
+        // Re-setup drag and drop after rendering
+        setupFeedDragDrop(document.getElementById('feeds-list'));
     } catch (error) {
         console.error('Error loading feeds:', error);
     }
@@ -180,15 +208,161 @@ async function refreshFeed(feedId) {
     }
 }
 
-function renderFeeds(feeds) {
+function renderFeeds(feeds, allFolders = []) {
     const feedsList = document.getElementById('feeds-list');
     
-    if (feeds.length === 0) {
+    if (feeds.length === 0 && allFolders.length === 0) {
         feedsList.innerHTML = '<div class="empty-state">No feeds yet. Add one to get started!</div>';
         return;
     }
 
-    feedsList.innerHTML = feeds.map(feed => `
+    // Group feeds by folder
+    const foldersMap = new Map();
+    const feedsWithoutFolder = [];
+
+    // First, initialize all folders (including empty ones)
+    allFolders.forEach(folder => {
+        foldersMap.set(folder.id, {
+            id: folder.id,
+            name: folder.name,
+            sort_order: folder.sort_order || 0,
+            feeds: []
+        });
+    });
+
+    // Then, assign feeds to folders
+    feeds.forEach(feed => {
+        if (feed.folder_id && feed.folder_name) {
+            if (!foldersMap.has(feed.folder_id)) {
+                foldersMap.set(feed.folder_id, {
+                    id: feed.folder_id,
+                    name: feed.folder_name,
+                    sort_order: feed.folder_sort_order || 0,
+                    feeds: []
+                });
+            }
+            foldersMap.get(feed.folder_id).feeds.push(feed);
+        } else {
+            feedsWithoutFolder.push(feed);
+        }
+    });
+
+    // Sort folders by sort_order, then name
+    const folders = Array.from(foldersMap.values()).sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+        return a.name.localeCompare(b.name);
+    });
+
+    // Build HTML
+    let html = '';
+
+    // Render feeds without folder first
+    feedsWithoutFolder.forEach(feed => {
+        html += renderFeedItem(feed);
+    });
+
+    // Render folders with their feeds
+    folders.forEach(folder => {
+        // Ensure folder.id is compared as a number for consistency
+        const folderId = typeof folder.id === 'string' ? parseInt(folder.id, 10) : Number(folder.id);
+        // Check collapsed state with both number and string to be safe
+        const isCollapsed = collapsedFolders.has(folderId) || collapsedFolders.has(String(folderId));
+        html += `
+            <div class="folder-item" data-folder-id="${folderId}">
+                <div class="folder-header" data-folder-id="${folderId}">
+                    <span class="folder-toggle">${isCollapsed ? '▶' : '▼'}</span>
+                    <span class="folder-name">${escapeHtml(folder.name)}</span>
+                    <button class="folder-edit-btn" data-folder-id="${folderId}" title="Edit folder">✎</button>
+                    <button class="folder-delete-btn" data-folder-id="${folderId}" title="Delete folder">×</button>
+                </div>
+                <div class="folder-feeds ${isCollapsed ? 'collapsed' : ''}">
+                    ${folder.feeds.map(feed => renderFeedItem(feed)).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    feedsList.innerHTML = html;
+
+    // Add click handlers for feeds
+    feedsList.querySelectorAll('.feed-item').forEach(item => {
+        const feedItemContent = item.querySelector('.feed-item-content');
+        if (feedItemContent) {
+            feedItemContent.addEventListener('click', () => {
+                const feedId = parseInt(item.dataset.feedId);
+                selectFeed(feedId);
+            });
+        }
+    });
+
+    // Add delete button handlers for feeds
+    feedsList.querySelectorAll('.feed-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const feedId = parseInt(btn.dataset.feedId);
+            if (confirm('Are you sure you want to delete this feed?')) {
+                await deleteFeed(feedId);
+            }
+        });
+    });
+
+    // Add folder toggle handlers
+    feedsList.querySelectorAll('.folder-header').forEach(header => {
+        const toggle = header.querySelector('.folder-toggle');
+        const folderFeeds = header.parentElement.querySelector('.folder-feeds');
+        const folderId = parseInt(header.dataset.folderId);
+        if (toggle && folderFeeds && folderId) {
+            // Make sure the toggle button itself is clickable
+            toggle.style.cursor = 'pointer';
+            
+            toggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const isCollapsed = folderFeeds.classList.toggle('collapsed');
+                toggle.textContent = isCollapsed ? '▶' : '▼';
+                // Update collapsed state tracking
+                if (isCollapsed) {
+                    collapsedFolders.add(folderId);
+                } else {
+                    collapsedFolders.delete(folderId);
+                }
+            });
+
+            // Prevent header click from bubbling to folder item
+            header.querySelectorAll('.folder-edit-btn, .folder-delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => e.stopPropagation());
+            });
+        }
+    });
+
+    // Add folder edit handlers
+    feedsList.querySelectorAll('.folder-edit-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const folderId = parseInt(btn.dataset.folderId);
+            const folderHeader = btn.closest('.folder-item');
+            const folderName = folderHeader.querySelector('.folder-name').textContent;
+            const newName = prompt('Enter new folder name:', folderName);
+            if (newName && newName.trim() && newName.trim() !== folderName) {
+                await updateFolderName(folderId, newName.trim());
+            }
+        });
+    });
+
+    // Add folder delete handlers
+    feedsList.querySelectorAll('.folder-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const folderId = parseInt(btn.dataset.folderId);
+            if (confirm('Are you sure you want to delete this folder? Feeds in this folder will be moved to the root.')) {
+                await deleteFolder(folderId);
+            }
+        });
+    });
+}
+
+function renderFeedItem(feed) {
+    return `
         <div class="feed-item ${feed.id === currentFeedId ? 'active' : ''} ${feed.unread_count > 0 ? 'unread' : ''}" 
              data-feed-id="${feed.id}" draggable="true">
             <div class="feed-item-content">
@@ -200,29 +374,7 @@ function renderFeeds(feeds) {
             </div>
             <button class="feed-delete-btn" data-feed-id="${feed.id}" title="Delete feed">×</button>
         </div>
-    `).join('');
-
-    // Add click handlers
-    feedsList.querySelectorAll('.feed-item').forEach(item => {
-        const feedItemContent = item.querySelector('.feed-item-content');
-        if (feedItemContent) {
-            feedItemContent.addEventListener('click', () => {
-                const feedId = parseInt(item.dataset.feedId);
-                selectFeed(feedId);
-            });
-        }
-    });
-
-    // Add delete button handlers
-    feedsList.querySelectorAll('.feed-delete-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const feedId = parseInt(btn.dataset.feedId);
-            if (confirm('Are you sure you want to delete this feed?')) {
-                await deleteFeed(feedId);
-            }
-        });
-    });
+    `;
 }
 
 function setupFeedDragDrop(feedsList) {
@@ -239,17 +391,65 @@ function setupFeedDragDrop(feedsList) {
     feedsList.addEventListener('dragend', (e) => {
         const item = e.target.closest('.feed-item');
         if (item) item.classList.remove('dragging');
+        // Remove all drop indicators
+        feedsList.querySelectorAll('.folder-header').forEach(header => {
+            header.classList.remove('drag-over');
+        });
     });
 
     feedsList.addEventListener('dragover', (e) => {
         e.preventDefault();
+        const feedId = e.dataTransfer.getData('text/plain');
+        if (!feedId) return;
+        
+        // Check if dragging over a folder header
+        const folderHeader = e.target.closest('.folder-header');
+        if (folderHeader) {
+            e.dataTransfer.dropEffect = 'move';
+            // Remove drag-over class from all headers
+            feedsList.querySelectorAll('.folder-header').forEach(header => {
+                header.classList.remove('drag-over');
+            });
+            // Add drag-over class to current header
+            folderHeader.classList.add('drag-over');
+            return;
+        }
+        
+        // Remove drag-over from all headers
+        feedsList.querySelectorAll('.folder-header').forEach(header => {
+            header.classList.remove('drag-over');
+        });
+        
         e.dataTransfer.dropEffect = 'move';
+    });
+
+    feedsList.addEventListener('dragleave', (e) => {
+        // Only remove drag-over if leaving the folder-header area
+        const folderHeader = e.target.closest('.folder-header');
+        if (folderHeader && !folderHeader.contains(e.relatedTarget)) {
+            folderHeader.classList.remove('drag-over');
+        }
     });
 
     feedsList.addEventListener('drop', async (e) => {
         e.preventDefault();
         const feedId = e.dataTransfer.getData('text/plain');
         if (!feedId) return;
+        
+        // Remove all drag-over indicators
+        feedsList.querySelectorAll('.folder-header').forEach(header => {
+            header.classList.remove('drag-over');
+        });
+        
+        // Check if dropped on a folder header
+        const folderHeader = e.target.closest('.folder-header');
+        if (folderHeader) {
+            const folderId = parseInt(folderHeader.dataset.folderId);
+            await assignFeedToFolder(parseInt(feedId), folderId);
+            return;
+        }
+        
+        // Check if dropped on another feed item (reordering)
         const droppedOn = e.target.closest('.feed-item');
         const draggedEl = feedsList.querySelector(`[data-feed-id="${feedId}"]`);
         if (!draggedEl) return;
@@ -586,6 +786,80 @@ async function deleteFeed(feedId) {
     } catch (error) {
         console.error('Error deleting feed:', error);
         alert('Error deleting feed. Please try again.');
+    }
+}
+
+async function createFolder(name) {
+    try {
+        const response = await fetch('/folders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const result = await response.json();
+        if (result.success) {
+            loadFeeds();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to create folder'));
+        }
+    } catch (error) {
+        console.error('Error creating folder:', error);
+        alert('Error creating folder. Please try again.');
+    }
+}
+
+async function updateFolderName(folderId, name) {
+    try {
+        const response = await fetch(`/folders/${folderId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const result = await response.json();
+        if (result.success) {
+            loadFeeds();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to update folder'));
+        }
+    } catch (error) {
+        console.error('Error updating folder:', error);
+        alert('Error updating folder. Please try again.');
+    }
+}
+
+async function deleteFolder(folderId) {
+    try {
+        const response = await fetch(`/folders/${folderId}`, {
+            method: 'DELETE'
+        });
+        const result = await response.json();
+        if (result.success) {
+            loadFeeds();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to delete folder'));
+        }
+    } catch (error) {
+        console.error('Error deleting folder:', error);
+        alert('Error deleting folder. Please try again.');
+    }
+}
+
+async function assignFeedToFolder(feedId, folderId) {
+    try {
+        const response = await fetch('/feeds/folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feed_id: feedId, folder_id: folderId })
+        });
+        const result = await response.json();
+        if (result.success) {
+            loadFeeds();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to assign feed to folder'));
+        }
+    } catch (error) {
+        console.error('Error assigning feed to folder:', error);
+        alert('Error assigning feed to folder. Please try again.');
     }
 }
 

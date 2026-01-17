@@ -116,9 +116,20 @@ class Database
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )");
 
+            $db->exec("CREATE TABLE IF NOT EXISTS folders (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, name)
+            )");
+
             $db->exec("CREATE TABLE IF NOT EXISTS feeds (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
+                folder_id INTEGER,
                 title TEXT NOT NULL,
                 url TEXT NOT NULL,
                 feed_type VARCHAR(50) NOT NULL,
@@ -127,6 +138,7 @@ class Database
                 sort_order INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
                 UNIQUE(user_id, url)
             )");
 
@@ -165,16 +177,29 @@ class Database
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )");
 
+            $db->exec("CREATE TABLE IF NOT EXISTS folders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, name)
+            )");
+
             $db->exec("CREATE TABLE IF NOT EXISTS feeds (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
+                folder_id INTEGER,
                 title TEXT NOT NULL,
                 url TEXT NOT NULL,
                 feed_type TEXT NOT NULL,
                 description TEXT,
                 last_fetched DATETIME,
+                sort_order INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
                 UNIQUE(user_id, url)
             )");
 
@@ -204,7 +229,7 @@ class Database
             )");
         }
 
-        // Create indexes for performance
+        // Create indexes for performance (basic tables)
         $db->exec("CREATE INDEX IF NOT EXISTS idx_feeds_user_id ON feeds(user_id)");
         $db->exec("CREATE INDEX IF NOT EXISTS idx_feed_items_feed_id ON feed_items(feed_id)");
         $db->exec("CREATE INDEX IF NOT EXISTS idx_read_items_user_id ON read_items(user_id)");
@@ -239,5 +264,23 @@ class Database
             // Backfill existing feeds with a stable order (by id)
             $db->exec("UPDATE feeds SET sort_order = id WHERE sort_order = 0");
         }
+
+        // Add folder_id column to feeds table if it doesn't exist
+        if (!self::columnExists($db, 'feeds', 'folder_id')) {
+            $db->exec("ALTER TABLE feeds ADD COLUMN folder_id INTEGER");
+        }
+        
+        // Create indexes for folders (after tables/columns exist)
+        // Check if folders table exists by trying to create index (folder table should exist from CREATE TABLE)
+        try {
+            $db->exec("CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id)");
+            $db->exec("CREATE INDEX IF NOT EXISTS idx_feeds_folder_id ON feeds(folder_id)");
+        } catch (PDOException $e) {
+            // Folders table might not exist yet (for very old databases), ignore
+        }
+
+        // Create index for folders
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_folders_user_id ON folders(user_id)");
+        $db->exec("CREATE INDEX IF NOT EXISTS idx_feeds_folder_id ON feeds(folder_id)");
     }
 }

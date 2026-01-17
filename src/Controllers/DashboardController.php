@@ -16,8 +16,14 @@ class DashboardController
         $user = Auth::user();
         $db = Database::getConnection();
 
-        // Get all feeds for the user
-        $stmt = $db->prepare("SELECT * FROM feeds WHERE user_id = ? ORDER BY sort_order ASC, id ASC");
+        // Get all feeds for the user, including folder information
+        $stmt = $db->prepare("
+            SELECT f.*, fld.name as folder_name 
+            FROM feeds f 
+            LEFT JOIN folders fld ON f.folder_id = fld.id 
+            WHERE f.user_id = ? 
+            ORDER BY COALESCE(fld.sort_order, 999999) ASC, fld.name ASC, f.sort_order ASC, f.id ASC
+        ");
         $stmt->execute([$user['id']]);
         $feeds = $stmt->fetchAll();
 

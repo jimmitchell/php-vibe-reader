@@ -167,14 +167,18 @@ class FeedController
 
         $stmt = $db->prepare("
             SELECT f.*, 
+                   fld.id as folder_id,
+                   fld.name as folder_name,
+                   fld.sort_order as folder_sort_order,
                    COUNT(fi.id) as item_count,
                    COUNT(CASE WHEN ri.id IS NULL THEN 1 END) as unread_count
             FROM feeds f
+            LEFT JOIN folders fld ON f.folder_id = fld.id
             LEFT JOIN feed_items fi ON f.id = fi.feed_id
             LEFT JOIN read_items ri ON ri.feed_item_id = fi.id AND ri.user_id = ?
             WHERE f.user_id = ?
-            GROUP BY f.id
-            ORDER BY f.sort_order ASC, f.id ASC
+            GROUP BY f.id, fld.id, fld.name, fld.sort_order
+            ORDER BY COALESCE(fld.sort_order, 999999) ASC, fld.name ASC, f.sort_order ASC, f.id ASC
         ");
         $stmt->execute([$user['id'], $user['id']]);
         $feeds = $stmt->fetchAll();
@@ -590,6 +594,175 @@ class FeedController
         if ($fontFamily !== null) {
             $_SESSION['font_family'] = $fontFamily;
         }
+
+        echo json_encode(['success' => true]);
+    }
+
+    public function getFolders(): void
+    {
+        Auth::requireAuth();
+        header('Content-Type: application/json');
+
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        $stmt = $db->prepare("
+            SELECT * FROM folders 
+            WHERE user_id = ? 
+            ORDER BY sort_order ASC, name ASC
+        ");
+        $stmt->execute([$user['id']]);
+        $folders = $stmt->fetchAll();
+
+        echo json_encode(['success' => true, 'folders' => $folders]);
+    }
+
+    public function createFolder(): void
+    {
+        Auth::requireAuth();
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $name = trim($input['name'] ?? '');
+
+        if (empty($name)) {
+            echo json_encode(['success' => false, 'error' => 'Folder name is required']);
+            return;
+        }
+
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Check if folder with same name already exists for this user
+        $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ?");
+        $stmt->execute([$user['id'], $name]);
+        if ($stmt->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Folder with this name already exists']);
+            return;
+        }
+
+        // Get max sort_order for this user
+        $stmt = $db->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM folders WHERE user_id = ?");
+        $stmt->execute([$user['id']]);
+        $result = $stmt->fetch();
+        $sortOrder = $result['next_order'] ?? 0;
+
+        $stmt = $db->prepare("INSERT INTO folders (user_id, name, sort_order) VALUES (?, ?, ?)");
+        $stmt->execute([$user['id'], $name, $sortOrder]);
+
+        echo json_encode(['success' => true, 'folder_id' => $db->lastInsertId()]);
+    }
+
+    public function updateFolder(array $params): void
+    {
+        Auth::requireAuth();
+        header('Content-Type: application/json');
+
+        $folderId = $params['id'] ?? null;
+        if (!$folderId) {
+            echo json_encode(['success' => false, 'error' => 'Folder ID required']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $name = trim($input['name'] ?? '');
+
+        if (empty($name)) {
+            echo json_encode(['success' => false, 'error' => 'Folder name is required']);
+            return;
+        }
+
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Verify folder belongs to user
+        $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
+        $stmt->execute([$folderId, $user['id']]);
+        if (!$stmt->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Folder not found']);
+            return;
+        }
+
+        // Check if another folder with same name exists
+        $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ? AND id != ?");
+        $stmt->execute([$user['id'], $name, $folderId]);
+        if ($stmt->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Folder with this name already exists']);
+            return;
+        }
+
+        $stmt = $db->prepare("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$name, $folderId, $user['id']]);
+
+        echo json_encode(['success' => true]);
+    }
+
+    public function deleteFolder(array $params): void
+    {
+        Auth::requireAuth();
+        header('Content-Type: application/json');
+
+        $folderId = $params['id'] ?? null;
+        if (!$folderId) {
+            echo json_encode(['success' => false, 'error' => 'Folder ID required']);
+            return;
+        }
+
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Verify folder belongs to user
+        $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
+        $stmt->execute([$folderId, $user['id']]);
+        if (!$stmt->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Folder not found']);
+            return;
+        }
+
+        // Delete folder (feeds will have folder_id set to NULL due to ON DELETE SET NULL)
+        $stmt = $db->prepare("DELETE FROM folders WHERE id = ? AND user_id = ?");
+        $stmt->execute([$folderId, $user['id']]);
+
+        echo json_encode(['success' => true]);
+    }
+
+    public function updateFeedFolder(): void
+    {
+        Auth::requireAuth();
+        header('Content-Type: application/json');
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $feedId = $input['feed_id'] ?? null;
+        $folderId = $input['folder_id'] ?? null; // null means remove from folder
+
+        if (!$feedId) {
+            echo json_encode(['success' => false, 'error' => 'Feed ID required']);
+            return;
+        }
+
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Verify feed belongs to user
+        $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
+        $stmt->execute([$feedId, $user['id']]);
+        if (!$stmt->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'Feed not found']);
+            return;
+        }
+
+        // If folder_id is provided, verify it belongs to user
+        if ($folderId !== null) {
+            $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
+            $stmt->execute([$folderId, $user['id']]);
+            if (!$stmt->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Folder not found']);
+                return;
+            }
+        }
+
+        $stmt = $db->prepare("UPDATE feeds SET folder_id = ? WHERE id = ? AND user_id = ?");
+        $stmt->execute([$folderId, $feedId, $user['id']]);
 
         echo json_encode(['success' => true]);
     }

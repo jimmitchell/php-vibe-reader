@@ -160,6 +160,8 @@ body {
 .btn-sm {
     padding: 6px 12px;
     font-size: 14px;
+    min-height: 32px;
+    box-sizing: border-box;
 }
 
 .btn-icon {
@@ -208,11 +210,16 @@ a.btn-icon {
 }
 
 .pane-header-compact {
-    justify-content: flex-end;
+    justify-content: flex-start;
+    gap: 8px;
 }
 
-.pane-header-compact .btn {
-    width: 100%;
+.pane-header-compact .btn-icon {
+    flex-shrink: 0;
+}
+
+.pane-header-compact .btn-primary {
+    flex: 1;
 }
 
 .error {
@@ -448,6 +455,98 @@ a.btn-icon {
 .item-entry.unread {
     background-color: var(--unread);
     font-weight: 500;
+}
+
+/* Folder Styles */
+.folder-item {
+    border-bottom: 1px solid var(--border);
+}
+
+.folder-header {
+    padding: 10px 15px;
+    background-color: rgba(0, 0, 0, 0.02);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.95em;
+    color: var(--text);
+    transition: background-color 0.2s;
+}
+
+[data-theme="dark"] .folder-header {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.folder-header:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .folder-header:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.folder-header.drag-over {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.folder-header.drag-over .folder-name,
+.folder-header.drag-over .folder-toggle {
+    color: white;
+}
+
+.folder-toggle {
+    font-size: 0.8em;
+    color: var(--text-light);
+    user-select: none;
+    width: 12px;
+    display: inline-block;
+}
+
+.folder-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.folder-edit-btn,
+.folder-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 4px 6px;
+    font-size: 16px;
+    line-height: 1;
+    border-radius: 3px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.folder-edit-btn:hover,
+.folder-delete-btn:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .folder-edit-btn:hover,
+[data-theme="dark"] .folder-delete-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.folder-feeds {
+    display: block;
+}
+
+.folder-feeds.collapsed {
+    display: none;
+}
+
+.folder-feeds .feed-item {
+    padding-left: 35px;
 }
 
 .item-entry-title {
