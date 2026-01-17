@@ -1,0 +1,22 @@
+{
+    "name": "php-rss/reader",
+    "description": "A PHP-based RSS reading platform similar to Google Reader",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "ext-pdo": "*",
+        "ext-pdo_sqlite": "*",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-simplexml": "*",
+        "ext-libxml": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "PhpRss\\": "src/"
+        }
+    },
+    "scripts": {
+        "setup": "php scripts/setup.php"
+    }
+}

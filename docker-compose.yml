@@ -1,0 +1,23 @@
+services:
+  vibereader:
+    build: .
+    container_name: vibereader
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist database and allow for code changes during development
+      - ./data:/var/www/html/data
+      - ./src:/var/www/html/src
+      - ./views:/var/www/html/views
+      - ./assets:/var/www/html/assets
+      - ./index.php:/var/www/html/index.php
+      - ./scripts:/var/www/html/scripts
+    environment:
+      - PHP_CLI_SERVER_WORKERS=4
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "php", "-r", "file_get_contents('http://localhost:8000') || exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
