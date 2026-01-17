@@ -18,7 +18,7 @@ class Auth
         }
 
         $db = Database::getConnection();
-        $stmt = $db->prepare("SELECT id, username, email, COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, username, email, COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode, COALESCE(font_family, 'system') as font_family FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch();
         
@@ -27,6 +27,7 @@ class Auth
             $_SESSION['dark_mode'] = (bool)($user['dark_mode'] ?? 0);
             $_SESSION['timezone'] = $user['timezone'] ?? 'UTC';
             $_SESSION['default_theme_mode'] = $user['default_theme_mode'] ?? 'system';
+            $_SESSION['font_family'] = $user['font_family'] ?? 'system';
         }
         
         return $user ?: null;
@@ -43,13 +44,14 @@ class Auth
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             // Load user preferences
-            $stmt = $db->prepare("SELECT COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode, COALESCE(font_family, 'system') as font_family FROM users WHERE id = ?");
             $stmt->execute([$user['id']]);
             $pref = $stmt->fetch();
             $_SESSION['hide_read_items'] = (bool)($pref['hide_read_items'] ?? 1);
             $_SESSION['dark_mode'] = (bool)($pref['dark_mode'] ?? 0);
             $_SESSION['timezone'] = $pref['timezone'] ?? 'UTC';
             $_SESSION['default_theme_mode'] = $pref['default_theme_mode'] ?? 'system';
+            $_SESSION['font_family'] = $pref['font_family'] ?? 'system';
             return true;
         }
 

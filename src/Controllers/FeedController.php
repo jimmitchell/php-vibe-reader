@@ -519,7 +519,8 @@ class FeedController
         echo json_encode([
             'success' => true,
             'timezone' => $_SESSION['timezone'] ?? $user['timezone'] ?? 'UTC',
-            'default_theme_mode' => $_SESSION['default_theme_mode'] ?? $user['default_theme_mode'] ?? 'system'
+            'default_theme_mode' => $_SESSION['default_theme_mode'] ?? $user['default_theme_mode'] ?? 'system',
+            'font_family' => $_SESSION['font_family'] ?? $user['font_family'] ?? 'system'
         ]);
     }
 
@@ -531,6 +532,7 @@ class FeedController
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $timezone = $input['timezone'] ?? null;
         $defaultThemeMode = $input['default_theme_mode'] ?? null;
+        $fontFamily = $input['font_family'] ?? null;
 
         $user = Auth::user();
         $db = Database::getConnection();
@@ -559,6 +561,16 @@ class FeedController
             $params[] = $defaultThemeMode;
         }
 
+        if ($fontFamily !== null) {
+            $validFonts = ['system', 'Lato', 'Roboto', 'Noto Sans', 'Nunito', 'Mulish'];
+            if (!in_array($fontFamily, $validFonts)) {
+                echo json_encode(['success' => false, 'error' => 'Invalid font family']);
+                return;
+            }
+            $updates[] = "font_family = ?";
+            $params[] = $fontFamily;
+        }
+
         if (empty($updates)) {
             echo json_encode(['success' => false, 'error' => 'No valid preferences to update']);
             return;
@@ -574,6 +586,9 @@ class FeedController
         }
         if ($defaultThemeMode !== null) {
             $_SESSION['default_theme_mode'] = $defaultThemeMode;
+        }
+        if ($fontFamily !== null) {
+            $_SESSION['font_family'] = $fontFamily;
         }
 
         echo json_encode(['success' => true]);

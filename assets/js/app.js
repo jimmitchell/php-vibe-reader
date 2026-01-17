@@ -702,6 +702,9 @@ async function loadPreferences() {
         if (result.success) {
             document.getElementById('timezone').value = result.timezone || 'UTC';
             document.getElementById('default-theme-mode').value = result.default_theme_mode || 'system';
+            if (document.getElementById('font-family')) {
+                document.getElementById('font-family').value = result.font_family || 'system';
+            }
         }
     } catch (error) {
         console.error('Error loading preferences:', error);
@@ -711,15 +714,25 @@ async function loadPreferences() {
 async function savePreferences() {
     const timezone = document.getElementById('timezone').value;
     const defaultThemeMode = document.getElementById('default-theme-mode').value;
+    const newFontFamily = document.getElementById('font-family').value;
     
     try {
         const response = await fetch('/preferences', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ timezone, default_theme_mode: defaultThemeMode })
+            body: JSON.stringify({ timezone, default_theme_mode: defaultThemeMode, font_family: newFontFamily })
         });
         const result = await response.json();
         if (result.success) {
+            // Get the original font family from page load (set by PHP)
+            const originalFontFamily = typeof fontFamily !== 'undefined' ? fontFamily : 'system';
+            
+            // Always reload page when font changes (needs new Google Fonts link in head)
+            if (newFontFamily !== originalFontFamily) {
+                window.location.reload();
+                return;
+            }
+            
             // Update global variables
             window.userTimezone = timezone;
             window.defaultThemeMode = defaultThemeMode;

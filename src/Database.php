@@ -112,6 +112,7 @@ class Database
                 dark_mode INTEGER DEFAULT 0,
                 timezone VARCHAR(255) DEFAULT 'UTC',
                 default_theme_mode VARCHAR(50) DEFAULT 'system',
+                font_family VARCHAR(100) DEFAULT 'system',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )");
 
@@ -226,6 +227,11 @@ class Database
         if (!self::columnExists($db, 'users', 'default_theme_mode')) {
             $type = self::$dbType === 'pgsql' ? "VARCHAR(50) DEFAULT 'system'" : "TEXT DEFAULT 'system'";
             $db->exec("ALTER TABLE users ADD COLUMN default_theme_mode {$type}");
+        }
+
+        if (!self::columnExists($db, 'users', 'font_family')) {
+            $type = self::$dbType === 'pgsql' ? "VARCHAR(100) DEFAULT 'system'" : "TEXT DEFAULT 'system'";
+            $db->exec("ALTER TABLE users ADD COLUMN font_family {$type}");
         }
 
         if (!self::columnExists($db, 'feeds', 'sort_order')) {

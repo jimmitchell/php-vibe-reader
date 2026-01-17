@@ -4,7 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - VibeReader</title>
+    <?php
+    // Get font family from session first (most up-to-date), then user data, then default
+    $fontFamily = $_SESSION['font_family'] ?? $user['font_family'] ?? 'system';
+    $googleFontsMap = [
+        'Lato' => 'Lato:ital,wght@0,400;0,700;1,400;1,700',
+        'Roboto' => 'Roboto:ital,wght@0,400;0,700;1,400;1,700',
+        'Noto Sans' => 'Noto+Sans:ital,wght@0,400;0,700;1,400;1,700',
+        'Nunito' => 'Nunito:ital,wght@0,400;0,700;1,400;1,700',
+        'Mulish' => 'Mulish:ital,wght@0,400;0,700;1,400;1,700'
+    ];
+    if ($fontFamily !== 'system' && isset($googleFontsMap[$fontFamily])) {
+        echo '<link rel="preconnect" href="https://fonts.googleapis.com">' . PHP_EOL;
+        echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . PHP_EOL;
+        echo '<link href="https://fonts.googleapis.com/css2?family=' . htmlspecialchars($googleFontsMap[$fontFamily]) . '&display=swap" rel="stylesheet">' . PHP_EOL;
+    }
+    ?>
     <link rel="stylesheet" href="/assets/css/style.css">
+    <style>
+        :root {
+            --font-family: <?php
+                if ($fontFamily === 'system') {
+                    echo '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif';
+                } else {
+                    echo "'" . htmlspecialchars($fontFamily) . "', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif";
+                }
+            ?>;
+        }
+        body {
+            font-family: var(--font-family);
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -127,6 +157,17 @@
                     </select>
                     <small style="color: var(--text-light); font-size: 0.9em;">System will match your OS preference</small>
                 </div>
+                <div class="form-group">
+                    <label for="font-family">Font Family</label>
+                    <select id="font-family" name="font_family">
+                        <option value="system" <?= ($user['font_family'] ?? 'system') === 'system' ? 'selected' : '' ?>>System Font</option>
+                        <option value="Lato" <?= ($user['font_family'] ?? 'system') === 'Lato' ? 'selected' : '' ?>>Lato</option>
+                        <option value="Roboto" <?= ($user['font_family'] ?? 'system') === 'Roboto' ? 'selected' : '' ?>>Roboto</option>
+                        <option value="Noto Sans" <?= ($user['font_family'] ?? 'system') === 'Noto Sans' ? 'selected' : '' ?>>Noto Sans</option>
+                        <option value="Nunito" <?= ($user['font_family'] ?? 'system') === 'Nunito' ? 'selected' : '' ?>>Nunito</option>
+                        <option value="Mulish" <?= ($user['font_family'] ?? 'system') === 'Mulish' ? 'selected' : '' ?>>Mulish</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary">Save Preferences</button>
             </form>
         </div>
@@ -137,6 +178,7 @@
         var hideReadItems = <?= json_encode((bool)($user['hide_read_items'] ?? true)) ?>;
         var userTimezone = <?= json_encode($user['timezone'] ?? 'UTC') ?>;
         var defaultThemeMode = <?= json_encode($user['default_theme_mode'] ?? 'system') ?>;
+        var fontFamily = <?= json_encode($user['font_family'] ?? 'system') ?>;
     </script>
     <script src="/assets/js/app.js"></script>
 </body>
