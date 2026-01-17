@@ -42,19 +42,19 @@
             <h1>VibeReader</h1>
             <div class="header-actions">
                 <span class="username"><?= htmlspecialchars($user['username']) ?></span>
-                <button id="theme-toggle-btn" class="btn btn-icon" aria-label="<?= !empty($user['dark_mode']) ? 'Switch to light mode' : 'Switch to dark mode' ?>" title="<?= !empty($user['dark_mode']) ? 'Switch to light mode' : 'Switch to dark mode' ?>">
+                <button id="theme-toggle-btn" class="btn btn-icon btn-sm" aria-label="<?= !empty($user['dark_mode']) ? 'Switch to light mode' : 'Switch to dark mode' ?>" title="<?= !empty($user['dark_mode']) ? 'Switch to light mode' : 'Switch to dark mode' ?>">
                     <?php if (!empty($user['dark_mode'])): ?>
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                     <?php else: ?>
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                     <?php endif; ?>
                 </button>
-                <button id="preferences-btn" class="btn btn-icon" aria-label="Preferences" title="Preferences">
+                <button id="preferences-btn" class="btn btn-icon btn-sm" aria-label="Preferences" title="Preferences">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
                     </svg>
                 </button>
-                <a href="/logout" class="btn btn-icon" aria-label="Logout" title="Logout">
+                <a href="/logout" class="btn btn-icon btn-sm" aria-label="Logout" title="Logout">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                     </svg>
