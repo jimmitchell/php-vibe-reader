@@ -4,6 +4,7 @@ namespace PhpRss\Controllers;
 
 use PhpRss\Auth;
 use PhpRss\View;
+use PhpRss\Csrf;
 
 /**
  * Controller for handling authentication-related actions.
@@ -38,6 +39,12 @@ class AuthController
      */
     public function login(): void
     {
+        // Validate CSRF token
+        if (!Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
+            View::render('login', ['error' => 'Invalid security token. Please try again.']);
+            return;
+        }
+
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
 
@@ -81,8 +88,14 @@ class AuthController
      */
     public function register(): void
     {
-        $username = $_POST['username'] ?? '';
-        $email = $_POST['email'] ?? '';
+        // Validate CSRF token
+        if (!Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
+            View::render('register', ['error' => 'Invalid security token. Please try again.']);
+            return;
+        }
+
+        $username = trim($_POST['username'] ?? '');
+        $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
 
@@ -91,13 +104,35 @@ class AuthController
             return;
         }
 
+        // Validate username
+        if (strlen($username) < 3 || strlen($username) > 50) {
+            View::render('register', ['error' => 'Username must be between 3 and 50 characters']);
+            return;
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $username)) {
+            View::render('register', ['error' => 'Username can only contain letters, numbers, underscores, and hyphens']);
+            return;
+        }
+
+        // Validate email
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            View::render('register', ['error' => 'Invalid email address']);
+            return;
+        }
+
+        if (strlen($email) > 255) {
+            View::render('register', ['error' => 'Email address is too long']);
+            return;
+        }
+
         if ($password !== $confirmPassword) {
             View::render('register', ['error' => 'Passwords do not match']);
             return;
         }
 
-        if (strlen($password) < 6) {
-            View::render('register', ['error' => 'Password must be at least 6 characters']);
+        if (strlen($password) < 8) {
+            View::render('register', ['error' => 'Password must be at least 8 characters']);
             return;
         }
 

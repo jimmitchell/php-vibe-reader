@@ -4,6 +4,7 @@ namespace PhpRss\Controllers;
 
 use PhpRss\Auth;
 use PhpRss\Database;
+use PhpRss\Csrf;
 use PDO;
 
 /**
@@ -106,6 +107,9 @@ class ApiController
      */
     public function markAsRead(array $params): void
     {
+        // Validate CSRF token for API endpoints
+        Csrf::requireValid();
+        
         $feedController = new \PhpRss\Controllers\FeedController();
         $feedController->markAsRead($params);
     }

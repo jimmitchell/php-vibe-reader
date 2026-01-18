@@ -18,6 +18,7 @@
                 <div class="success"><?= htmlspecialchars($success) ?></div>
             <?php endif; ?>
             <form method="POST" action="/login">
+                <?php use PhpRss\Csrf; echo Csrf::field(); ?>
                 <div class="form-group">
                     <label for="username">Username or Email</label>
                     <input type="text" id="username" name="username" required>

@@ -15,6 +15,66 @@ let currentItemId = null;
 /** @type {Set<number>} Track which folders are collapsed */
 const collapsedFolders = new Set();
 
+/**
+ * Get CSRF token from meta tag or form input.
+ * @returns {string|null} CSRF token or null if not found
+ */
+function getCsrfToken() {
+    // Try to get from meta tag first
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    if (metaTag) {
+        return metaTag.getAttribute('content');
+    }
+    // Fallback: try to get from hidden input in any form
+    const input = document.querySelector('input[name="_token"]');
+    if (input) {
+        return input.value;
+    }
+    return null;
+}
+
+/**
+ * Add CSRF token to fetch options for POST/PUT/DELETE requests.
+ * @param {Object} options - Fetch options object
+ * @returns {Object} Modified options with CSRF token
+ */
+function addCsrfToken(options = {}) {
+    const token = getCsrfToken();
+    if (!token) return options;
+    
+    if (!options.headers) {
+        options.headers = {};
+    }
+    
+    // Add to headers
+    options.headers['X-CSRF-Token'] = token;
+    
+    // Also add to body if it's a form data or JSON
+    if (options.body) {
+        if (options.body instanceof FormData) {
+            options.body.append('_token', token);
+        } else if (typeof options.body === 'string') {
+            try {
+                const json = JSON.parse(options.body);
+                json._token = token;
+                options.body = JSON.stringify(json);
+            } catch (e) {
+                // Not JSON, add as form data
+                if (options.body.includes('&')) {
+                    options.body += '&_token=' + encodeURIComponent(token);
+                }
+            }
+        }
+    } else if (options.method && ['POST', 'PUT', 'DELETE'].includes(options.method.toUpperCase())) {
+        // If no body, create form data
+        const formData = new FormData();
+        formData.append('_token', token);
+        options.body = formData;
+    }
+    
+    return options;
+}
+
 // hideReadItems is initialized from server-side script in dashboard.php
 // If not set, default to true
 if (typeof hideReadItems === 'undefined') {
@@ -274,10 +334,10 @@ function setupEventListeners() {
             formData.append('opml_file', file);
 
             try {
-                const response = await fetch('/opml/import', {
+                const response = await fetch('/opml/import', addCsrfToken({
                     method: 'POST',
                     body: formData
-                });
+                }));
 
                 const result = await response.json();
 
@@ -369,7 +429,7 @@ async function refreshAllFeeds() {
         if (feeds.length === 0) return;
         // Fetch each feed in the background (don't await, run in parallel)
         await Promise.all(feeds.map(feed => 
-            fetch(`/feeds/${feed.id}/fetch`, { method: 'POST' }).catch(() => {})
+            fetch(`/feeds/${feed.id}/fetch`, addCsrfToken({ method: 'POST' })).catch(() => {})
         ));
         // Reload feeds list to show updated counts
         loadFeeds();
@@ -388,7 +448,7 @@ async function refreshFeed(feedId) {
     const btn = document.getElementById('refresh-feed-btn');
     if (btn) btn.disabled = true;
     try {
-        const response = await fetch(`/feeds/${feedId}/fetch`, { method: 'POST' });
+        const response = await fetch(`/feeds/${feedId}/fetch`, addCsrfToken({ method: 'POST' }));
         const result = await response.json();
         if (result.success && currentFeedId === feedId) {
             await loadFeedItems(feedId);
@@ -663,11 +723,11 @@ function setupFeedDragDrop(feedsList) {
 
 async function saveFeedOrder(order) {
     try {
-        const response = await fetch('/feeds/reorder', {
+        const response = await fetch('/feeds/reorder', addCsrfToken({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order })
-        });
+        }));
         const result = await response.json();
         if (!result.success) {
             alert('Error: ' + (result.error || 'Failed to save order'));
@@ -878,10 +938,10 @@ async function addFeed(url) {
         const formData = new FormData();
         formData.append('url', url);
 
-        const response = await fetch('/feeds/add', {
+        const response = await fetch('/feeds/add', addCsrfToken({
             method: 'POST',
             body: formData
-        });
+        }));
 
         const result = await response.json();
 
@@ -907,9 +967,9 @@ async function addFeed(url) {
 
 async function markAsRead(itemId) {
     try {
-        await fetch(`/items/${itemId}/read`, {
+        await fetch(`/items/${itemId}/read`, addCsrfToken({
             method: 'POST'
-        });
+        }));
     } catch (error) {
         console.error('Error marking as read:', error);
     }
@@ -917,9 +977,9 @@ async function markAsRead(itemId) {
 
 async function markAsUnread(itemId) {
     try {
-        const response = await fetch(`/items/${itemId}/unread`, {
+        const response = await fetch(`/items/${itemId}/unread`, addCsrfToken({
             method: 'POST'
-        });
+        }));
 
         const result = await response.json();
 
@@ -956,9 +1016,9 @@ async function markAsUnread(itemId) {
 
 async function deleteFeed(feedId) {
     try {
-        const response = await fetch(`/feeds/${feedId}/delete`, {
+        const response = await fetch(`/feeds/${feedId}/delete`, addCsrfToken({
             method: 'POST'
-        });
+        }));
 
         const result = await response.json();
 
@@ -986,11 +1046,11 @@ async function deleteFeed(feedId) {
 
 async function createFolder(name) {
     try {
-        const response = await fetch('/folders', {
+        const response = await fetch('/folders', addCsrfToken({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
-        });
+        }));
         const result = await response.json();
         if (result.success) {
             loadFeeds();
@@ -1005,11 +1065,11 @@ async function createFolder(name) {
 
 async function updateFolderName(folderId, name) {
     try {
-        const response = await fetch(`/folders/${folderId}`, {
+        const response = await fetch(`/folders/${folderId}`, addCsrfToken({
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
-        });
+        }));
         const result = await response.json();
         if (result.success) {
             loadFeeds();
@@ -1024,9 +1084,9 @@ async function updateFolderName(folderId, name) {
 
 async function deleteFolder(folderId) {
     try {
-        const response = await fetch(`/folders/${folderId}`, {
+        const response = await fetch(`/folders/${folderId}`, addCsrfToken({
             method: 'DELETE'
-        });
+        }));
         const result = await response.json();
         if (result.success) {
             loadFeeds();
@@ -1060,9 +1120,9 @@ async function assignFeedToFolder(feedId, folderId) {
 
 async function markAllAsRead(feedId) {
     try {
-        const response = await fetch(`/feeds/${feedId}/mark-all-read`, {
+        const response = await fetch(`/feeds/${feedId}/mark-all-read`, addCsrfToken({
             method: 'POST'
-        });
+        }));
 
         const result = await response.json();
 
@@ -1146,9 +1206,9 @@ function updateHideReadButton() {
  */
 async function toggleItemSortOrder() {
     try {
-        const response = await fetch('/preferences/toggle-item-sort-order', {
+        const response = await fetch('/preferences/toggle-item-sort-order', addCsrfToken({
             method: 'POST'
-        });
+        }));
 
         const result = await response.json();
 
@@ -1171,9 +1231,9 @@ async function toggleItemSortOrder() {
 
 async function toggleHideRead() {
     try {
-        const response = await fetch('/preferences/toggle-hide-read', {
+        const response = await fetch('/preferences/toggle-hide-read', addCsrfToken({
             method: 'POST'
-        });
+        }));
 
         const result = await response.json();
 
@@ -1204,9 +1264,9 @@ async function toggleHideRead() {
  */
 async function toggleHideFeedsWithNoUnread() {
     try {
-        const response = await fetch('/preferences/toggle-hide-feeds-no-unread', {
+        const response = await fetch('/preferences/toggle-hide-feeds-no-unread', addCsrfToken({
             method: 'POST'
-        });
+        }));
 
         const result = await response.json();
 
@@ -1253,7 +1313,7 @@ function updateHideFeedsNoUnreadButton() {
 
 async function toggleTheme() {
     try {
-        const response = await fetch('/preferences/toggle-theme', { method: 'POST' });
+        const response = await fetch('/preferences/toggle-theme', addCsrfToken({ method: 'POST' }));
         const result = await response.json();
         if (result.success) {
             document.documentElement.setAttribute('data-theme', result.dark_mode ? 'dark' : 'light');
@@ -1304,11 +1364,11 @@ async function savePreferences() {
     const newFontFamily = document.getElementById('font-family').value;
     
     try {
-        const response = await fetch('/preferences', {
+        const response = await fetch('/preferences', addCsrfToken({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ timezone, default_theme_mode: defaultThemeMode, font_family: newFontFamily })
-        });
+        }));
         const result = await response.json();
         if (result.success) {
             // Get the original font family from page load (set by PHP)

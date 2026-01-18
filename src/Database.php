@@ -84,7 +84,13 @@ class Database
                 self::$dbType = 'sqlite';
             }
         } catch (PDOException $e) {
-            die('Database connection failed: ' . $e->getMessage());
+            // Don't expose database connection details in production
+            error_log('Database connection failed: ' . $e->getMessage());
+            if (getenv('APP_ENV') === 'development') {
+                die('Database connection failed: ' . $e->getMessage());
+            } else {
+                die('Database connection failed. Please contact the administrator.');
+            }
         }
     }
 

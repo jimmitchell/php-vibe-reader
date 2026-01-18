@@ -7,6 +7,7 @@ use PhpRss\Database;
 use PhpRss\FeedParser;
 use PhpRss\FeedFetcher;
 use PhpRss\FeedDiscovery;
+use PhpRss\Csrf;
 use PDO;
 
 /**
@@ -34,9 +35,12 @@ class FeedController
     {
         Auth::requireAuth();
         
+        // Validate CSRF token for state-changing operations
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
         
-        $url = $_POST['url'] ?? '';
+        $url = trim($_POST['url'] ?? '');
         if (empty($url)) {
             echo json_encode(['success' => false, 'error' => 'URL is required']);
             return;
@@ -352,6 +356,9 @@ class FeedController
     {
         Auth::requireAuth();
         
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
         
         $itemId = $params['id'] ?? null;
@@ -399,6 +406,9 @@ class FeedController
     {
         Auth::requireAuth();
         
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
         
         $itemId = $params['id'] ?? null;
@@ -443,6 +453,9 @@ class FeedController
     {
         Auth::requireAuth();
         
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
         
         $feedId = $params['id'] ?? null;
@@ -486,6 +499,9 @@ class FeedController
     {
         Auth::requireAuth();
         
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
         
         $feedId = $params['id'] ?? null;
@@ -524,6 +540,9 @@ class FeedController
     public function delete(array $params): void
     {
         Auth::requireAuth();
+        
+        // Validate CSRF token
+        Csrf::requireValid();
         
         header('Content-Type: application/json');
         
@@ -687,6 +706,9 @@ class FeedController
     {
         Auth::requireAuth();
 
+        // Validate CSRF token
+        Csrf::requireValid();
+
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -742,6 +764,10 @@ class FeedController
     public function updatePreferences(): void
     {
         Auth::requireAuth();
+        
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -848,6 +874,10 @@ class FeedController
     public function createFolder(): void
     {
         Auth::requireAuth();
+        
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -893,6 +923,10 @@ class FeedController
     public function updateFolder(array $params): void
     {
         Auth::requireAuth();
+        
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
 
         $folderId = $params['id'] ?? null;
@@ -946,6 +980,10 @@ class FeedController
     public function deleteFolder(array $params): void
     {
         Auth::requireAuth();
+        
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
 
         $folderId = $params['id'] ?? null;
@@ -986,6 +1024,10 @@ class FeedController
     public function updateFeedFolder(): void
     {
         Auth::requireAuth();
+        
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -1121,6 +1163,9 @@ class FeedController
     {
         Auth::requireAuth();
         
+        // Validate CSRF token
+        Csrf::requireValid();
+        
         // Ensure we output JSON even if there are errors
         header('Content-Type: application/json');
         
@@ -1128,7 +1173,37 @@ class FeedController
         ob_start();
         
         try {
-            if (!isset($_FILES['opml_file']) || $_FILES['opml_file']['error'] !== UPLOAD_ERR_OK) {
+            // Validate file upload
+            if (!isset($_FILES['opml_file'])) {
+                ob_end_clean();
+                echo json_encode(['success' => false, 'error' => 'No file uploaded']);
+                return;
+            }
+
+            // Check file size (max 5MB)
+            if ($_FILES['opml_file']['size'] > 5 * 1024 * 1024) {
+                ob_end_clean();
+                echo json_encode(['success' => false, 'error' => 'File too large. Maximum size is 5MB']);
+                return;
+            }
+
+            // Validate MIME type
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $_FILES['opml_file']['tmp_name']);
+            finfo_close($finfo);
+            
+            $allowedMimes = ['application/xml', 'text/xml', 'application/octet-stream'];
+            if (!in_array($mimeType, $allowedMimes)) {
+                // Check file extension as fallback
+                $ext = strtolower(pathinfo($_FILES['opml_file']['name'], PATHINFO_EXTENSION));
+                if ($ext !== 'opml' && $ext !== 'xml') {
+                    ob_end_clean();
+                    echo json_encode(['success' => false, 'error' => 'Invalid file type. Only OPML/XML files are allowed']);
+                    return;
+                }
+            }
+
+            if ($_FILES['opml_file']['error'] !== UPLOAD_ERR_OK) {
                 $errorMsg = 'No file uploaded';
                 if (isset($_FILES['opml_file']['error'])) {
                     switch ($_FILES['opml_file']['error']) {
