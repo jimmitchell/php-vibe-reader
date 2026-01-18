@@ -15,7 +15,7 @@ class Version
      * 
      * @var string
      */
-    public const VERSION = '1.0.0';
+    public const VERSION = '1.1.0';
 
     /**
      * Application name
@@ -27,7 +27,7 @@ class Version
     /**
      * Get the full application version string.
      * 
-     * @return string Version string (e.g., "VibeReader/1.0.0")
+     * @return string Version string (e.g., "VibeReader/1.1.0")
      */
     public static function getVersionString(): string
     {
@@ -37,7 +37,7 @@ class Version
     /**
      * Get the version number only.
      * 
-     * @return string Version number (e.g., "1.0.0")
+     * @return string Version number (e.g., "1.1.0")
      */
     public static function getVersion(): string
     {

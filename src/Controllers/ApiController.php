@@ -5,6 +5,8 @@ namespace PhpRss\Controllers;
 use PhpRss\Auth;
 use PhpRss\Database;
 use PhpRss\Csrf;
+use PhpRss\Response;
+use PhpRss\Services\FeedService;
 use PDO;
 
 /**
@@ -28,45 +30,18 @@ class ApiController
     {
         Auth::requireAuth();
         
-        header('Content-Type: application/json');
-        
         $user = Auth::user();
-        $db = Database::getConnection();
-
-        $stmt = $db->prepare("
-            SELECT f.*, 
-                   fld.id as folder_id,
-                   fld.name as folder_name,
-                   fld.sort_order as folder_sort_order,
-                   COUNT(fi.id) as item_count,
-                   COUNT(CASE WHEN ri.id IS NULL THEN 1 END) as unread_count
-            FROM feeds f
-            LEFT JOIN folders fld ON f.folder_id = fld.id
-            LEFT JOIN feed_items fi ON f.id = fi.feed_id
-            LEFT JOIN read_items ri ON ri.feed_item_id = fi.id AND ri.user_id = ?
-            WHERE f.user_id = ?
-            GROUP BY f.id, fld.id, fld.name, fld.sort_order
-            ORDER BY COALESCE(fld.sort_order, 999999) ASC, fld.name ASC, f.sort_order ASC, f.id ASC
-        ");
-        $stmt->execute([$user['id'], $user['id']]);
-        $feeds = $stmt->fetchAll();
-
-        // Filter out feeds with no unread items if preference is enabled
         $hideFeedsWithNoUnread = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
-        if ($hideFeedsWithNoUnread) {
-            $feeds = array_filter($feeds, function($feed) {
-                return ($feed['unread_count'] ?? 0) > 0;
-            });
-            // Re-index array after filtering
-            $feeds = array_values($feeds);
-        }
+        
+        // Use FeedService to get feeds (eliminates code duplication)
+        $feeds = FeedService::getFeedsForUser($user['id'], $hideFeedsWithNoUnread);
 
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
         $feeds = array_map(function($feed) {
             return \PhpRss\Utils::formatDatesForJson($feed);
         }, $feeds);
 
-        echo json_encode($feeds);
+        Response::json($feeds);
     }
 
     /**
@@ -129,11 +104,9 @@ class ApiController
     {
         Auth::requireAuth();
         
-        header('Content-Type: application/json');
-        
         $query = trim($_GET['q'] ?? '');
         if (empty($query)) {
-            echo json_encode([]);
+            Response::json([]);
             return;
         }
 
@@ -189,7 +162,7 @@ class ApiController
             return \PhpRss\Utils::formatDatesForJson($item);
         }, $results);
 
-        echo json_encode($results);
+        Response::json($results);
     }
 
     /**
@@ -201,9 +174,7 @@ class ApiController
      */
     public function getVersion(): void
     {
-        header('Content-Type: application/json');
-        
-        echo json_encode([
+        Response::json([
             'app_name' => \PhpRss\Version::getAppName(),
             'version' => \PhpRss\Version::getVersion(),
             'version_string' => \PhpRss\Version::getVersionString()

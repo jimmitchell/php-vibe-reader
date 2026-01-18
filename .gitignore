@@ -5,3 +5,7 @@ vendor/
 .env
 .htaccess.local
 node_modules/
+.phpunit.cache/
+coverage/
+logs/
+*.log

@@ -252,7 +252,7 @@ class FeedDiscovery
             return true;
         } catch (\Exception $e) {
             // Log for debugging but don't expose to user
-            error_log("Feed verification failed for $url: " . $e->getMessage());
+            \PhpRss\Logger::debug("Feed verification failed for $url", ['url' => $url, 'error' => $e->getMessage()]);
             return false;
         }
     }

@@ -4,6 +4,7 @@ namespace PhpRss;
 
 use PDO;
 use PDOException;
+use PhpRss\Config;
 
 /**
  * Database connection and schema management class.
@@ -54,17 +55,16 @@ class Database
     private static function connect(): void
     {
         try {
-            // Determine database type from environment variable
-            // Use getenv() as $_ENV may not be populated in CLI mode
-            self::$dbType = getenv('DB_TYPE') ?: 'sqlite';
+            // Get database configuration from Config class
+            self::$dbType = Config::get('database.type', 'sqlite');
             
             if (self::$dbType === 'pgsql' || self::$dbType === 'postgresql') {
                 // PostgreSQL connection
-                $host = getenv('DB_HOST') ?: 'localhost';
-                $port = getenv('DB_PORT') ?: '5432';
-                $dbname = getenv('DB_NAME') ?: 'vibereader';
-                $user = getenv('DB_USER') ?: 'vibereader';
-                $password = getenv('DB_PASSWORD') ?: 'vibereader';
+                $host = Config::get('database.host', 'localhost');
+                $port = Config::get('database.port', '5432');
+                $dbname = Config::get('database.name', 'vibereader');
+                $user = Config::get('database.user', 'vibereader');
+                $password = Config::get('database.password', 'vibereader');
 
                 $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
                 self::$connection = new PDO($dsn, $user, $password);
@@ -85,8 +85,8 @@ class Database
             }
         } catch (PDOException $e) {
             // Don't expose database connection details in production
-            error_log('Database connection failed: ' . $e->getMessage());
-            if (getenv('APP_ENV') === 'development') {
+            \PhpRss\Logger::exception($e, ['context' => 'database_connection']);
+            if (Config::isDevelopment()) {
                 die('Database connection failed: ' . $e->getMessage());
             } else {
                 die('Database connection failed. Please contact the administrator.');

@@ -8,6 +8,9 @@ use PhpRss\FeedParser;
 use PhpRss\FeedFetcher;
 use PhpRss\FeedDiscovery;
 use PhpRss\Csrf;
+use PhpRss\Response;
+use PhpRss\Services\FeedService;
+use PhpRss\Logger;
 use PDO;
 
 /**
@@ -38,17 +41,15 @@ class FeedController
         // Validate CSRF token for state-changing operations
         Csrf::requireValid();
         
-        header('Content-Type: application/json');
-        
         $url = trim($_POST['url'] ?? '');
         if (empty($url)) {
-            echo json_encode(['success' => false, 'error' => 'URL is required']);
+            Response::error('URL is required', 400);
             return;
         }
 
         // Validate URL
         if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            echo json_encode(['success' => false, 'error' => 'Invalid URL']);
+            Response::error('Invalid URL', 400);
             return;
         }
 
@@ -72,7 +73,7 @@ class FeedController
                 $isFeed = true;
             } catch (\Exception $e) {
                 // Log the error for debugging
-                error_log("Direct feed parse failed for $url: " . $e->getMessage());
+                Logger::debug("Direct feed parse failed for $url", ['url' => $url, 'error' => $e->getMessage()]);
                 // Not a direct feed, will try discovery below
                 $isFeed = false;
             }
@@ -156,14 +157,15 @@ class FeedController
 
             // Check if we got any items
             if (empty($parsed['items'])) {
-                echo json_encode([
-                    'success' => false, 
-                    'error' => 'Feed was parsed but contains no items. The feed might be empty or the format is not fully supported.'
-                ]);
+                Response::error('Feed was parsed but contains no items. The feed might be empty or the format is not fully supported.', 400);
                 return;
             }
             
-            echo json_encode(['success' => true, 'feed_id' => $feedId, 'feed_url' => $feedUrl, 'item_count' => count($parsed['items'])]);
+            Response::success([
+                'feed_id' => $feedId,
+                'feed_url' => $feedUrl,
+                'item_count' => count($parsed['items'])
+            ]);
         } catch (\Exception $e) {
             // Provide more helpful error messages
             $errorMsg = $e->getMessage();
@@ -174,8 +176,8 @@ class FeedController
                 $errorMsg = "Failed to add feed: " . $errorMsg;
             }
             // Log full error for debugging
-            error_log("Feed add error: " . $e->getMessage() . " | Trace: " . $e->getTraceAsString());
-            echo json_encode(['success' => false, 'error' => $errorMsg]);
+            Logger::exception($e, ['url' => $url, 'error_msg' => $errorMsg]);
+            Response::error($errorMsg, 400);
         }
     }
 
@@ -191,45 +193,18 @@ class FeedController
     {
         Auth::requireAuth();
         
-        header('Content-Type: application/json');
-        
         $user = Auth::user();
-        $db = Database::getConnection();
-
-        $stmt = $db->prepare("
-            SELECT f.*, 
-                   fld.id as folder_id,
-                   fld.name as folder_name,
-                   fld.sort_order as folder_sort_order,
-                   COUNT(fi.id) as item_count,
-                   COUNT(CASE WHEN ri.id IS NULL THEN 1 END) as unread_count
-            FROM feeds f
-            LEFT JOIN folders fld ON f.folder_id = fld.id
-            LEFT JOIN feed_items fi ON f.id = fi.feed_id
-            LEFT JOIN read_items ri ON ri.feed_item_id = fi.id AND ri.user_id = ?
-            WHERE f.user_id = ?
-            GROUP BY f.id, fld.id, fld.name, fld.sort_order
-            ORDER BY COALESCE(fld.sort_order, 999999) ASC, fld.name ASC, f.sort_order ASC, f.id ASC
-        ");
-        $stmt->execute([$user['id'], $user['id']]);
-        $feeds = $stmt->fetchAll();
-
-        // Filter out feeds with no unread items if preference is enabled
         $hideFeedsWithNoUnread = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
-        if ($hideFeedsWithNoUnread) {
-            $feeds = array_filter($feeds, function($feed) {
-                return ($feed['unread_count'] ?? 0) > 0;
-            });
-            // Re-index array after filtering
-            $feeds = array_values($feeds);
-        }
+        
+        // Use FeedService to get feeds (eliminates code duplication)
+        $feeds = FeedService::getFeedsForUser($user['id'], $hideFeedsWithNoUnread);
 
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
         $feeds = array_map(function($feed) {
             return \PhpRss\Utils::formatDatesForJson($feed);
         }, $feeds);
 
-        echo json_encode($feeds);
+        Response::json($feeds);
     }
 
     /**
@@ -245,22 +220,18 @@ class FeedController
     {
         Auth::requireAuth();
         
-        header('Content-Type: application/json');
-        
         $feedId = $params['id'] ?? null;
         if (!$feedId) {
-            echo json_encode(['error' => 'Feed ID required']);
+            Response::error('Feed ID required', 400);
             return;
         }
 
         $user = Auth::user();
         $db = Database::getConnection();
 
-        // Verify feed belongs to user
-        $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
-        $stmt->execute([$feedId, $user['id']]);
-        if (!$stmt->fetch()) {
-            echo json_encode(['error' => 'Feed not found']);
+        // Verify feed belongs to user using FeedService
+        if (!FeedService::verifyFeedOwnership($feedId, $user['id'])) {
+            Response::error('Feed not found', 404);
             return;
         }
 
@@ -295,7 +266,7 @@ class FeedController
             return \PhpRss\Utils::formatDatesForJson($item);
         }, $items);
 
-        echo json_encode($items);
+        Response::json($items);
     }
 
     /**
@@ -311,11 +282,9 @@ class FeedController
     {
         Auth::requireAuth();
         
-        header('Content-Type: application/json');
-        
         $itemId = $params['id'] ?? null;
         if (!$itemId) {
-            echo json_encode(['error' => 'Item ID required']);
+            Response::error('Item ID required', 400);
             return;
         }
 
@@ -333,14 +302,14 @@ class FeedController
         $item = $stmt->fetch();
 
         if (!$item) {
-            echo json_encode(['error' => 'Item not found']);
+            Response::error('Item not found', 404);
             return;
         }
 
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
         $item = \PhpRss\Utils::formatDatesForJson($item);
 
-        echo json_encode($item);
+        Response::json($item);
     }
 
     /**
@@ -359,11 +328,9 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
         
-        header('Content-Type: application/json');
-        
         $itemId = $params['id'] ?? null;
         if (!$itemId) {
-            echo json_encode(['success' => false, 'error' => 'Item ID required']);
+            Response::error('Item ID required', 400);
             return;
         }
 
@@ -379,7 +346,7 @@ class FeedController
         ");
         $stmt->execute([$itemId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Item not found']);
+            Response::error('Item not found', 404);
             return;
         }
 
@@ -391,7 +358,7 @@ class FeedController
         $stmt = $db->prepare($insertSql);
         $stmt->execute([$user['id'], $itemId]);
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -409,11 +376,9 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
         
-        header('Content-Type: application/json');
-        
         $itemId = $params['id'] ?? null;
         if (!$itemId) {
-            echo json_encode(['success' => false, 'error' => 'Item ID required']);
+            Response::error('Item ID required', 400);
             return;
         }
 
@@ -429,7 +394,7 @@ class FeedController
         ");
         $stmt->execute([$itemId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Item not found']);
+            Response::error('Item not found', 404);
             return;
         }
 
@@ -437,7 +402,7 @@ class FeedController
         $stmt = $db->prepare("DELETE FROM read_items WHERE user_id = ? AND feed_item_id = ?");
         $stmt->execute([$user['id'], $itemId]);
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -456,11 +421,9 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
         
-        header('Content-Type: application/json');
-        
         $feedId = $params['id'] ?? null;
         if (!$feedId) {
-            echo json_encode(['success' => false, 'error' => 'Feed ID required']);
+            Response::error('Feed ID required', 400);
             return;
         }
 
@@ -471,7 +434,7 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Feed not found']);
+            Response::error('Feed not found', 404);
             return;
         }
 
@@ -483,7 +446,7 @@ class FeedController
         $stmt = $db->prepare($insertSql);
         $stmt->execute([$user['id'], $feedId]);
 
-        echo json_encode(['success' => true, 'count' => $stmt->rowCount()]);
+        Response::success(['count' => $stmt->rowCount()]);
     }
 
     /**
@@ -502,11 +465,9 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
         
-        header('Content-Type: application/json');
-        
         $feedId = $params['id'] ?? null;
         if (!$feedId) {
-            echo json_encode(['success' => false, 'error' => 'Feed ID required']);
+            Response::error('Feed ID required', 400);
             return;
         }
 
@@ -517,14 +478,14 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Feed not found']);
+            Response::error('Feed not found', 404);
             return;
         }
 
         if (FeedFetcher::updateFeed($feedId)) {
-            echo json_encode(['success' => true]);
+            Response::success();
         } else {
-            echo json_encode(['success' => false, 'error' => 'Failed to fetch feed']);
+            Response::error('Failed to fetch feed', 500);
         }
     }
 
@@ -544,11 +505,9 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
         
-        header('Content-Type: application/json');
-        
         $feedId = $params['id'] ?? null;
         if (!$feedId) {
-            echo json_encode(['success' => false, 'error' => 'Feed ID required']);
+            Response::error('Feed ID required', 400);
             return;
         }
 
@@ -559,7 +518,7 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Feed not found']);
+            Response::error('Feed not found', 404);
             return;
         }
 
@@ -567,7 +526,7 @@ class FeedController
         $stmt = $db->prepare("DELETE FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -581,8 +540,6 @@ class FeedController
     public function toggleHideRead(): void
     {
         Auth::requireAuth();
-        
-        header('Content-Type: application/json');
         
         $user = Auth::user();
         $db = Database::getConnection();
@@ -598,7 +555,7 @@ class FeedController
         // Update session
         $_SESSION['hide_read_items'] = $newValue;
 
-        echo json_encode(['success' => true, 'hide_read_items' => $newValue]);
+        Response::success(['hide_read_items' => $newValue]);
     }
 
     /**
@@ -612,8 +569,6 @@ class FeedController
     public function toggleItemSortOrder(): void
     {
         Auth::requireAuth();
-        
-        header('Content-Type: application/json');
         
         $user = Auth::user();
         $db = Database::getConnection();
@@ -630,7 +585,7 @@ class FeedController
         // Update session
         $_SESSION['item_sort_order'] = $newOrder;
 
-        echo json_encode(['success' => true, 'item_sort_order' => $newOrder]);
+        Response::success(['item_sort_order' => $newOrder]);
     }
 
     /**
@@ -644,8 +599,6 @@ class FeedController
     public function toggleHideFeedsWithNoUnread(): void
     {
         Auth::requireAuth();
-        
-        header('Content-Type: application/json');
         
         $user = Auth::user();
         $db = Database::getConnection();
@@ -661,7 +614,7 @@ class FeedController
         // Update session
         $_SESSION['hide_feeds_with_no_unread'] = $newValue;
 
-        echo json_encode(['success' => true, 'hide_feeds_with_no_unread' => $newValue]);
+        Response::success(['hide_feeds_with_no_unread' => $newValue]);
     }
 
     /**
@@ -676,8 +629,6 @@ class FeedController
     {
         Auth::requireAuth();
 
-        header('Content-Type: application/json');
-
         $user = Auth::user();
         $db = Database::getConnection();
 
@@ -689,7 +640,7 @@ class FeedController
 
         $_SESSION['dark_mode'] = $newValue;
 
-        echo json_encode(['success' => true, 'dark_mode' => $newValue]);
+        Response::success(['dark_mode' => $newValue]);
     }
 
     /**
@@ -709,12 +660,10 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
 
-        header('Content-Type: application/json');
-
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $order = $input['order'] ?? [];
         if (!is_array($order) || empty($order)) {
-            echo json_encode(['success' => false, 'error' => 'Order array required']);
+            Response::error('Order array required', 400);
             return;
         }
 
@@ -726,7 +675,7 @@ class FeedController
             $stmt->execute([$i, (int)$id, $user['id']]);
         }
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -740,11 +689,9 @@ class FeedController
     public function getPreferences(): void
     {
         Auth::requireAuth();
-        header('Content-Type: application/json');
 
         $user = Auth::user();
-        echo json_encode([
-            'success' => true,
+        Response::success([
             'timezone' => $_SESSION['timezone'] ?? $user['timezone'] ?? 'UTC',
             'default_theme_mode' => $_SESSION['default_theme_mode'] ?? $user['default_theme_mode'] ?? 'system',
             'font_family' => $_SESSION['font_family'] ?? $user['font_family'] ?? 'system'
@@ -767,8 +714,6 @@ class FeedController
         
         // Validate CSRF token
         Csrf::requireValid();
-        
-        header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $timezone = $input['timezone'] ?? null;
@@ -788,14 +733,14 @@ class FeedController
                 $updates[] = "timezone = ?";
                 $params[] = $timezone;
             } catch (\Exception $e) {
-                echo json_encode(['success' => false, 'error' => 'Invalid timezone']);
+                Response::error('Invalid timezone', 400);
                 return;
             }
         }
 
         if ($defaultThemeMode !== null) {
             if (!in_array($defaultThemeMode, ['light', 'dark', 'system'])) {
-                echo json_encode(['success' => false, 'error' => 'Invalid theme mode']);
+                Response::error('Invalid theme mode', 400);
                 return;
             }
             $updates[] = "default_theme_mode = ?";
@@ -805,7 +750,7 @@ class FeedController
         if ($fontFamily !== null) {
             $validFonts = ['system', 'Lato', 'Roboto', 'Noto Sans', 'Nunito', 'Mulish'];
             if (!in_array($fontFamily, $validFonts)) {
-                echo json_encode(['success' => false, 'error' => 'Invalid font family']);
+                Response::error('Invalid font family', 400);
                 return;
             }
             $updates[] = "font_family = ?";
@@ -813,7 +758,7 @@ class FeedController
         }
 
         if (empty($updates)) {
-            echo json_encode(['success' => false, 'error' => 'No valid preferences to update']);
+            Response::error('No valid preferences to update', 400);
             return;
         }
 
@@ -832,7 +777,7 @@ class FeedController
             $_SESSION['font_family'] = $fontFamily;
         }
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -845,7 +790,6 @@ class FeedController
     public function getFolders(): void
     {
         Auth::requireAuth();
-        header('Content-Type: application/json');
 
         $user = Auth::user();
         $db = Database::getConnection();
@@ -858,7 +802,7 @@ class FeedController
         $stmt->execute([$user['id']]);
         $folders = $stmt->fetchAll();
 
-        echo json_encode(['success' => true, 'folders' => $folders]);
+        Response::success(['folders' => $folders]);
     }
 
     /**
@@ -877,14 +821,12 @@ class FeedController
         
         // Validate CSRF token
         Csrf::requireValid();
-        
-        header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $name = trim($input['name'] ?? '');
 
         if (empty($name)) {
-            echo json_encode(['success' => false, 'error' => 'Folder name is required']);
+            Response::error('Folder name is required', 400);
             return;
         }
 
@@ -895,7 +837,7 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ?");
         $stmt->execute([$user['id'], $name]);
         if ($stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Folder with this name already exists']);
+            Response::error('Folder with this name already exists', 400);
             return;
         }
 
@@ -908,7 +850,7 @@ class FeedController
         $stmt = $db->prepare("INSERT INTO folders (user_id, name, sort_order) VALUES (?, ?, ?)");
         $stmt->execute([$user['id'], $name, $sortOrder]);
 
-        echo json_encode(['success' => true, 'folder_id' => $db->lastInsertId()]);
+        Response::success(['folder_id' => $db->lastInsertId()]);
     }
 
     /**
@@ -926,12 +868,10 @@ class FeedController
         
         // Validate CSRF token
         Csrf::requireValid();
-        
-        header('Content-Type: application/json');
 
         $folderId = $params['id'] ?? null;
         if (!$folderId) {
-            echo json_encode(['success' => false, 'error' => 'Folder ID required']);
+            Response::error('Folder ID required', 400);
             return;
         }
 
@@ -939,7 +879,7 @@ class FeedController
         $name = trim($input['name'] ?? '');
 
         if (empty($name)) {
-            echo json_encode(['success' => false, 'error' => 'Folder name is required']);
+            Response::error('Folder name is required', 400);
             return;
         }
 
@@ -950,7 +890,7 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Folder not found']);
+            Response::error('Folder not found', 404);
             return;
         }
 
@@ -958,14 +898,14 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ? AND id != ?");
         $stmt->execute([$user['id'], $name, $folderId]);
         if ($stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Folder with this name already exists']);
+            Response::error('Folder with this name already exists', 400);
             return;
         }
 
         $stmt = $db->prepare("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?");
         $stmt->execute([$name, $folderId, $user['id']]);
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -983,12 +923,10 @@ class FeedController
         
         // Validate CSRF token
         Csrf::requireValid();
-        
-        header('Content-Type: application/json');
 
         $folderId = $params['id'] ?? null;
         if (!$folderId) {
-            echo json_encode(['success' => false, 'error' => 'Folder ID required']);
+            Response::error('Folder ID required', 400);
             return;
         }
 
@@ -999,7 +937,7 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Folder not found']);
+            Response::error('Folder not found', 404);
             return;
         }
 
@@ -1007,7 +945,7 @@ class FeedController
         $stmt = $db->prepare("DELETE FROM folders WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $user['id']]);
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -1027,15 +965,13 @@ class FeedController
         
         // Validate CSRF token
         Csrf::requireValid();
-        
-        header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $feedId = $input['feed_id'] ?? null;
         $folderId = $input['folder_id'] ?? null; // null means remove from folder
 
         if (!$feedId) {
-            echo json_encode(['success' => false, 'error' => 'Feed ID required']);
+            Response::error('Feed ID required', 400);
             return;
         }
 
@@ -1046,7 +982,7 @@ class FeedController
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
         if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Feed not found']);
+            Response::error('Feed not found', 404);
             return;
         }
 
@@ -1055,7 +991,7 @@ class FeedController
             $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
             $stmt->execute([$folderId, $user['id']]);
             if (!$stmt->fetch()) {
-                echo json_encode(['success' => false, 'error' => 'Folder not found']);
+                Response::error('Folder not found', 404);
                 return;
             }
         }
@@ -1063,7 +999,7 @@ class FeedController
         $stmt = $db->prepare("UPDATE feeds SET folder_id = ? WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $feedId, $user['id']]);
 
-        echo json_encode(['success' => true]);
+        Response::success();
     }
 
     /**
@@ -1167,9 +1103,6 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
         
-        // Ensure we output JSON even if there are errors
-        header('Content-Type: application/json');
-        
         // Catch any PHP errors/warnings
         ob_start();
         
@@ -1177,14 +1110,14 @@ class FeedController
             // Validate file upload
             if (!isset($_FILES['opml_file'])) {
                 ob_end_clean();
-                echo json_encode(['success' => false, 'error' => 'No file uploaded']);
+                Response::error('No file uploaded', 400);
                 return;
             }
 
             // Check file size (max 5MB)
             if ($_FILES['opml_file']['size'] > 5 * 1024 * 1024) {
                 ob_end_clean();
-                echo json_encode(['success' => false, 'error' => 'File too large. Maximum size is 5MB']);
+                Response::error('File too large. Maximum size is 5MB', 400);
                 return;
             }
 
@@ -1199,7 +1132,7 @@ class FeedController
                 $ext = strtolower(pathinfo($_FILES['opml_file']['name'], PATHINFO_EXTENSION));
                 if ($ext !== 'opml' && $ext !== 'xml') {
                     ob_end_clean();
-                    echo json_encode(['success' => false, 'error' => 'Invalid file type. Only OPML/XML files are allowed']);
+                    Response::error('Invalid file type. Only OPML/XML files are allowed', 400);
                     return;
                 }
             }
@@ -1230,7 +1163,7 @@ class FeedController
                     }
                 }
                 ob_end_clean();
-                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                Response::error($errorMsg, 400);
                 return;
             }
 
@@ -1239,7 +1172,7 @@ class FeedController
             
             if ($content === false) {
                 ob_end_clean();
-                echo json_encode(['success' => false, 'error' => 'Could not read uploaded file']);
+                Response::error('Could not read uploaded file', 500);
                 return;
             }
 
@@ -1255,7 +1188,8 @@ class FeedController
                 if (!empty($libxmlErrors)) {
                     $errorMsg .= ': ' . $libxmlErrors[0]->message;
                 }
-                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                ob_end_clean();
+                Response::error($errorMsg, 400);
                 return;
             }
 
@@ -1373,28 +1307,19 @@ class FeedController
             }
 
             ob_end_clean();
-            echo json_encode([
-                'success' => true,
+            Response::success([
                 'added' => $addedCount,
                 'skipped' => $skippedCount,
                 'errors' => $errors
             ]);
         } catch (\Exception $e) {
             $output = ob_get_clean();
-            error_log("OPML Import Error: " . $e->getMessage());
-            error_log("Output buffer: " . $output);
-            echo json_encode([
-                'success' => false,
-                'error' => 'Import failed: ' . $e->getMessage()
-            ]);
+            Logger::exception($e, ['output_buffer' => $output]);
+            Response::error('Import failed: ' . $e->getMessage(), 500);
         } catch (\Error $e) {
             $output = ob_get_clean();
-            error_log("OPML Import Fatal Error: " . $e->getMessage());
-            error_log("Output buffer: " . $output);
-            echo json_encode([
-                'success' => false,
-                'error' => 'Import failed: ' . $e->getMessage()
-            ]);
+            Logger::error("OPML Import Fatal Error: " . $e->getMessage(), ['output_buffer' => $output, 'file' => $e->getFile(), 'line' => $e->getLine()]);
+            Response::error('Import failed: ' . $e->getMessage(), 500);
         }
     }
 }

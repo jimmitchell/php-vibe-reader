@@ -5,6 +5,8 @@ namespace PhpRss\Controllers;
 use PhpRss\Auth;
 use PhpRss\View;
 use PhpRss\Csrf;
+use PhpRss\Config;
+use PhpRss\Middleware\RateLimiter;
 
 /**
  * Controller for handling authentication-related actions.
@@ -39,6 +41,17 @@ class AuthController
      */
     public function login(): void
     {
+        // Rate limiting for login attempts
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $rateLimitKey = 'login:' . $ip;
+        $maxAttempts = Config::get('rate_limiting.login_max_attempts', 5);
+        $window = Config::get('rate_limiting.login_window', 900);
+        
+        if (!RateLimiter::check($rateLimitKey, $maxAttempts, $window)) {
+            View::render('login', ['error' => 'Too many login attempts. Please try again later.']);
+            return;
+        }
+
         // Validate CSRF token
         if (!Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
             View::render('login', ['error' => 'Invalid security token. Please try again.']);

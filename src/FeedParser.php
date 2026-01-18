@@ -166,7 +166,7 @@ class FeedParser
                 $feed['items'][] = self::parseRSSItem($item, $contentNsUri, $dcNsUri);
             } catch (\Exception $e) {
                 // If parsing fails for one item, log but continue
-                error_log("Failed to parse RSS item: " . $e->getMessage());
+                \PhpRss\Logger::warning("Failed to parse RSS item", ['error' => $e->getMessage()]);
                 // Try basic parsing without namespaces
                 try {
                     $feed['items'][] = [
@@ -180,7 +180,7 @@ class FeedParser
                     ];
                 } catch (\Exception $e2) {
                     // Skip this item if even basic parsing fails
-                    error_log("Basic RSS item parsing also failed: " . $e2->getMessage());
+                    \PhpRss\Logger::warning("Basic RSS item parsing also failed", ['error' => $e2->getMessage()]);
                 }
             }
         }

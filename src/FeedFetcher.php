@@ -4,6 +4,8 @@ namespace PhpRss;
 
 use PDO;
 use PhpRss\Version;
+use PhpRss\Config;
+use PhpRss\Logger;
 
 /**
  * Feed fetching and update class.
@@ -121,14 +123,16 @@ class FeedFetcher
         // Validate URL to prevent SSRF
         self::validateUrl($url);
         
+        $config = Config::get('feed', []);
+        
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; ' . Version::getVersionString() . ')',
+            CURLOPT_MAXREDIRS => $config['max_redirects'] ?? 10,
+            CURLOPT_TIMEOUT => $config['fetch_timeout'] ?? 30,
+            CURLOPT_CONNECTTIMEOUT => $config['fetch_connect_timeout'] ?? 10,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; ' . ($config['user_agent'] ?? Version::getVersionString()) . ')',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_HTTPHEADER => [
                 'Accept: application/rss+xml, application/atom+xml, application/json, text/xml, application/xml, text/html, */*'
@@ -206,7 +210,7 @@ class FeedFetcher
 
             return true;
         } catch (\Exception $e) {
-            error_log("Error updating feed $feedId: " . $e->getMessage());
+            Logger::exception($e, ['feed_id' => $feedId, 'context' => 'feed_update']);
             return false;
         }
     }
