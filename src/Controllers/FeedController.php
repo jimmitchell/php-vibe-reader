@@ -9,8 +9,27 @@ use PhpRss\FeedFetcher;
 use PhpRss\FeedDiscovery;
 use PDO;
 
+/**
+ * Controller for handling feed-related operations.
+ * 
+ * Manages feed CRUD operations, feed item retrieval, folder management,
+ * OPML import/export, user preferences, and feed updates. Provides both
+ * JSON API responses and handles feed fetching, parsing, and storage.
+ */
 class FeedController
 {
+    /**
+     * Add a new feed to the user's feed list.
+     * 
+     * Accepts either a direct feed URL or a website URL. If a website URL
+     * is provided, attempts feed discovery. Validates the feed, checks for
+     * duplicates, and creates/updates the feed record. Fetches initial feed
+     * items after adding.
+     * 
+     * POST parameter: 'url' - the feed URL or website URL
+     * 
+     * @return void Outputs JSON with 'success' boolean and optional 'error' message
+     */
     public function add(): void
     {
         Auth::requireAuth();
@@ -156,6 +175,14 @@ class FeedController
         }
     }
 
+    /**
+     * Get list of all feeds for the current user with counts.
+     * 
+     * Returns JSON array of feeds with folder associations, item counts, and
+     * unread counts. Dates are formatted for JSON (ISO 8601 UTC).
+     * 
+     * @return void Outputs JSON array of feed data
+     */
     public function list(): void
     {
         Auth::requireAuth();
@@ -191,6 +218,15 @@ class FeedController
         echo json_encode($feeds);
     }
 
+    /**
+     * Get feed items for a specific feed.
+     * 
+     * Returns feed items with read status. Respects user's hide_read_items
+     * preference. Items are ordered by published date (newest first).
+     * 
+     * @param array $params Route parameters including 'id' (feed ID)
+     * @return void Outputs JSON array of feed items
+     */
     public function getItems(array $params): void
     {
         Auth::requireAuth();
@@ -243,6 +279,15 @@ class FeedController
         echo json_encode($items);
     }
 
+    /**
+     * Get a single feed item by ID.
+     * 
+     * Returns the full feed item data including feed title. Verifies that
+     * the item belongs to the current user's feeds.
+     * 
+     * @param array $params Route parameters including 'id' (item ID)
+     * @return void Outputs JSON object with feed item data
+     */
     public function getItem(array $params): void
     {
         Auth::requireAuth();
@@ -279,6 +324,15 @@ class FeedController
         echo json_encode($item);
     }
 
+    /**
+     * Mark a feed item as read for the current user.
+     * 
+     * Creates a read_items record. Uses database-specific conflict handling
+     * (ON CONFLICT DO NOTHING for PostgreSQL, INSERT OR IGNORE for SQLite).
+     * 
+     * @param array $params Route parameters including 'id' (item ID)
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function markAsRead(array $params): void
     {
         Auth::requireAuth();
@@ -318,6 +372,14 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Mark a feed item as unread (remove from read_items).
+     * 
+     * Deletes the read_items record for this user and item.
+     * 
+     * @param array $params Route parameters including 'id' (item ID)
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function markAsUnread(array $params): void
     {
         Auth::requireAuth();
@@ -353,6 +415,15 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Mark all items in a feed as read.
+     * 
+     * Bulk inserts read_items records for all items in the specified feed.
+     * Uses database-specific conflict handling.
+     * 
+     * @param array $params Route parameters including 'id' (feed ID)
+     * @return void Outputs JSON with 'success' boolean and 'count' of marked items
+     */
     public function markAllAsRead(array $params): void
     {
         Auth::requireAuth();
@@ -387,6 +458,15 @@ class FeedController
         echo json_encode(['success' => true, 'count' => $stmt->rowCount()]);
     }
 
+    /**
+     * Fetch/update a feed by fetching latest content from the feed URL.
+     * 
+     * Delegates to FeedFetcher::updateFeed() to fetch and parse the feed,
+     * then update feed metadata and insert new items.
+     * 
+     * @param array $params Route parameters including 'id' (feed ID)
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function fetch(array $params): void
     {
         Auth::requireAuth();
@@ -417,6 +497,15 @@ class FeedController
         }
     }
 
+    /**
+     * Delete a feed from the user's feed list.
+     * 
+     * Deletes the feed record. Database cascade will handle deletion of
+     * associated feed_items and read_items.
+     * 
+     * @param array $params Route parameters including 'id' (feed ID)
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function delete(array $params): void
     {
         Auth::requireAuth();
@@ -447,6 +536,14 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Toggle the hide_read_items user preference.
+     * 
+     * Toggles the user's preference for hiding read items and updates
+     * both the database and session.
+     * 
+     * @return void Outputs JSON with 'success' boolean and 'hide_read_items' value
+     */
     public function toggleHideRead(): void
     {
         Auth::requireAuth();
@@ -470,6 +567,14 @@ class FeedController
         echo json_encode(['success' => true, 'hide_read_items' => $newValue]);
     }
 
+    /**
+     * Toggle the dark_mode user preference.
+     * 
+     * Toggles the user's theme preference between light and dark mode,
+     * updating both the database and session.
+     * 
+     * @return void Outputs JSON with 'success' boolean and 'dark_mode' value
+     */
     public function toggleTheme(): void
     {
         Auth::requireAuth();
@@ -490,6 +595,16 @@ class FeedController
         echo json_encode(['success' => true, 'dark_mode' => $newValue]);
     }
 
+    /**
+     * Update the sort order of feeds.
+     * 
+     * Accepts a JSON array of feed IDs in the desired order and updates
+     * the sort_order field for each feed.
+     * 
+     * JSON body: { "order": [feed_id1, feed_id2, ...] }
+     * 
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function reorderFeeds(): void
     {
         Auth::requireAuth();
@@ -514,6 +629,14 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Get current user preferences.
+     * 
+     * Returns timezone, default_theme_mode, and font_family from session
+     * or database (session takes precedence).
+     * 
+     * @return void Outputs JSON with user preferences
+     */
     public function getPreferences(): void
     {
         Auth::requireAuth();
@@ -528,6 +651,16 @@ class FeedController
         ]);
     }
 
+    /**
+     * Update user preferences (timezone, theme mode, font family).
+     * 
+     * Validates input values and updates database and session. Only
+     * updates fields that are provided in the request.
+     * 
+     * JSON body: { "timezone": "...", "default_theme_mode": "...", "font_family": "..." }
+     * 
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function updatePreferences(): void
     {
         Auth::requireAuth();
@@ -598,6 +731,13 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Get all folders for the current user.
+     * 
+     * Returns folders ordered by sort_order and name.
+     * 
+     * @return void Outputs JSON with 'success' boolean and 'folders' array
+     */
     public function getFolders(): void
     {
         Auth::requireAuth();
@@ -617,6 +757,16 @@ class FeedController
         echo json_encode(['success' => true, 'folders' => $folders]);
     }
 
+    /**
+     * Create a new folder for organizing feeds.
+     * 
+     * Validates that the folder name is unique for this user and creates
+     * the folder with appropriate sort_order.
+     * 
+     * JSON body: { "name": "Folder Name" }
+     * 
+     * @return void Outputs JSON with 'success' boolean and 'folder' data or error
+     */
     public function createFolder(): void
     {
         Auth::requireAuth();
@@ -653,6 +803,15 @@ class FeedController
         echo json_encode(['success' => true, 'folder_id' => $db->lastInsertId()]);
     }
 
+    /**
+     * Update a folder's name.
+     * 
+     * Validates the folder belongs to the user and that the new name is unique.
+     * 
+     * @param array $params Route parameters including 'id' (folder ID)
+     * JSON body: { "name": "New Folder Name" }
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function updateFolder(array $params): void
     {
         Auth::requireAuth();
@@ -697,6 +856,15 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Delete a folder.
+     * 
+     * Deletes the folder. Feeds in the folder will have folder_id set to NULL
+     * (handled by foreign key ON DELETE SET NULL).
+     * 
+     * @param array $params Route parameters including 'id' (folder ID)
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function deleteFolder(array $params): void
     {
         Auth::requireAuth();
@@ -726,6 +894,17 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Assign a feed to a folder or remove it from a folder.
+     * 
+     * Updates the feed's folder_id. If folder_id is null, removes the feed
+     * from its current folder. Validates that both feed and folder belong
+     * to the current user.
+     * 
+     * JSON body: { "feed_id": 123, "folder_id": 456 } or { "feed_id": 123, "folder_id": null }
+     * 
+     * @return void Outputs JSON with 'success' boolean
+     */
     public function updateFeedFolder(): void
     {
         Auth::requireAuth();
@@ -767,6 +946,14 @@ class FeedController
         echo json_encode(['success' => true]);
     }
 
+    /**
+     * Export user's feeds as OPML format.
+     * 
+     * Generates OPML XML file containing all user feeds, organized by folders.
+     * Sets appropriate headers for file download.
+     * 
+     * @return void Outputs OPML XML and sets headers for download
+     */
     public function exportOpml(): void
     {
         Auth::requireAuth();
@@ -840,6 +1027,18 @@ class FeedController
         echo $xml;
     }
 
+    /**
+     * Import feeds from an OPML file.
+     * 
+     * Parses uploaded OPML XML file, extracts feed URLs and folder structure,
+     * and adds feeds to the user's feed list. Handles nested folder structures
+     * and creates folders as needed. Uses output buffering to ensure only
+     * JSON is returned (no PHP errors/warnings in response).
+     * 
+     * POST file upload: 'opml_file' - the OPML XML file
+     * 
+     * @return void Outputs JSON with 'success' boolean, 'added' count, and 'errors' array
+     */
     public function importOpml(): void
     {
         Auth::requireAuth();

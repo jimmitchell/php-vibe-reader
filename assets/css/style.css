@@ -255,6 +255,12 @@ a.btn-icon {
     height: 16px;
 }
 
+/* Animate refresh button icons when refreshing (disabled state) */
+#refresh-all-btn:disabled .icon,
+#refresh-feed-btn:disabled .icon {
+    animation: spin 1s linear infinite;
+}
+
 .pane-header-compact {
     justify-content: flex-start;
     gap: 8px;

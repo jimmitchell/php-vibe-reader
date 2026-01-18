@@ -1,14 +1,30 @@
+/**
+ * Main JavaScript application for VibeReader RSS feed reader.
+ * 
+ * Handles all client-side functionality including feed management, item display,
+ * folder organization, search, preferences, and UI interactions.
+ */
+
 // Global state
+/** @type {number|null} Current selected feed ID */
 let currentFeedId = null;
+
+/** @type {number|null} Current selected item ID */
 let currentItemId = null;
-const collapsedFolders = new Set(); // Track which folders are collapsed
+
+/** @type {Set<number>} Track which folders are collapsed */
+const collapsedFolders = new Set();
+
 // hideReadItems is initialized from server-side script in dashboard.php
 // If not set, default to true
 if (typeof hideReadItems === 'undefined') {
     window.hideReadItems = true;
 }
 
-// Initialize
+/**
+ * Initialize the application when DOM is loaded.
+ * Sets up theme, loads feeds, refreshes all feeds, and sets up event listeners.
+ */
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize theme based on default_theme_mode
     initializeTheme();
@@ -21,6 +37,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadUserPreference();
 });
 
+/**
+ * Initialize the theme based on user's default_theme_mode preference.
+ * 
+ * If set to 'system', detects OS preference and listens for system theme changes.
+ * Otherwise, applies the specified theme (light or dark).
+ */
 function initializeTheme() {
     const defaultMode = window.defaultThemeMode || (typeof defaultThemeMode !== 'undefined' ? defaultThemeMode : 'system');
     if (defaultMode === 'system') {
@@ -41,6 +63,13 @@ function initializeTheme() {
     updateThemeButton();
 }
 
+/**
+ * Format a date string according to user's timezone preference.
+ * 
+ * @param {string} dateString - ISO 8601 date string
+ * @param {Object} options - Intl.DateTimeFormat options (optional)
+ * @returns {string} Formatted date string
+ */
 function formatDate(dateString, options = {}) {
     if (!dateString) return '';
     const tz = window.userTimezone || (typeof userTimezone !== 'undefined' ? userTimezone : 'UTC');
@@ -51,6 +80,12 @@ function formatDate(dateString, options = {}) {
     }).format(date);
 }
 
+/**
+ * Set up all event listeners for user interactions.
+ * 
+ * Handles clicks on buttons, form submissions, modal interactions,
+ * drag-and-drop, and other UI events.
+ */
 function setupEventListeners() {
     // Refresh all button
     const refreshAllBtn = document.getElementById('refresh-all-btn');

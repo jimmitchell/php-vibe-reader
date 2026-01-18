@@ -4,13 +4,33 @@ namespace PhpRss;
 
 use PDO;
 
+/**
+ * Authentication and user session management class.
+ * 
+ * Handles user authentication, registration, login/logout, and provides
+ * access to the current user's information and preferences.
+ */
 class Auth
 {
+    /**
+     * Check if a user is currently authenticated.
+     * 
+     * @return bool True if a user is logged in (has a user_id in session), false otherwise
+     */
     public static function check(): bool
     {
         return isset($_SESSION['user_id']);
     }
 
+    /**
+     * Get the currently authenticated user's information.
+     * 
+     * Fetches user data from the database and loads user preferences into
+     * the session for quick access. Returns null if no user is authenticated.
+     * 
+     * @return array|null User data array with id, username, email, and preferences,
+     *                    or null if not authenticated
+     */
     public static function user(): ?array
     {
         if (!self::check()) {
@@ -33,6 +53,16 @@ class Auth
         return $user ?: null;
     }
 
+    /**
+     * Authenticate a user with username/email and password.
+     * 
+     * Checks credentials against the database and, if valid, creates a session
+     * and loads user preferences into the session.
+     * 
+     * @param string $username Username or email address
+     * @param string $password Plain text password (will be verified using password_verify)
+     * @return bool True if login successful, false if credentials are invalid
+     */
     public static function login(string $username, string $password): bool
     {
         $db = Database::getConnection();
@@ -58,6 +88,17 @@ class Auth
         return false;
     }
 
+    /**
+     * Register a new user account.
+     * 
+     * Creates a new user in the database with a hashed password. Validates
+     * that the username and email are unique before creating the account.
+     * 
+     * @param string $username Desired username (must be unique)
+     * @param string $email User's email address (must be unique)
+     * @param string $password Plain text password (will be hashed using PASSWORD_DEFAULT)
+     * @return bool True if registration successful, false if username/email already exists
+     */
     public static function register(string $username, string $email, string $password): bool
     {
         $db = Database::getConnection();
@@ -74,12 +115,29 @@ class Auth
         return $stmt->execute([$username, $email, $passwordHash]);
     }
 
+    /**
+     * Log out the current user.
+     * 
+     * Destroys the session and clears all session data.
+     * 
+     * @return void
+     */
     public static function logout(): void
     {
         session_destroy();
         $_SESSION = [];
     }
 
+    /**
+     * Require that a user is authenticated.
+     * 
+     * If no user is authenticated, redirects to the home page (login/register)
+     * and terminates script execution. Use this to protect routes that require
+     * authentication.
+     * 
+     * @return void
+     * @throws void Exits script execution if not authenticated
+     */
     public static function requireAuth(): void
     {
         if (!self::check()) {

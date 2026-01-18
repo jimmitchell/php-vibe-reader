@@ -2,13 +2,28 @@
 
 namespace PhpRss;
 
+/**
+ * Feed discovery class for finding RSS/Atom/JSON feeds from website URLs.
+ * 
+ * When users provide a website URL instead of a direct feed URL, this class
+ * attempts to discover the feed by trying common feed paths and parsing
+ * HTML link tags for feed references.
+ */
 class FeedDiscovery
 {
     /**
-     * Discover feed URLs from a given URL
+     * Discover feed URLs from a given website URL.
      * 
-     * @param string $url The URL to discover feeds from
-     * @return array Array of discovered feed URLs
+     * Uses multiple strategies to find feeds:
+     * 1. Checks if the URL already appears to be a feed path
+     * 2. Tries common feed paths (/feed, /rss, /atom.xml, etc.)
+     * 3. Fetches the HTML page and looks for <link rel="alternate"> tags
+     * 
+     * Returns the first valid feed found. Each feed entry includes 'url',
+     * 'type' (MIME type or 'discovered'), and optionally 'title'.
+     * 
+     * @param string $url The website URL to discover feeds from
+     * @return array Array of discovered feed entries, each with 'url', 'type', and optionally 'title'
      */
     public static function discover(string $url): array
     {
@@ -101,10 +116,14 @@ class FeedDiscovery
     }
     
     /**
-     * Try common feed paths
+     * Try common feed paths to find a valid feed URL.
      * 
-     * @param string $baseUrl The base URL
-     * @return array Array of potential feed URLs
+     * Attempts various common feed path patterns like /feed, /rss, /atom.xml
+     * at both the current page path and the root level. Also tries query
+     * parameter variations like ?feed=rss.
+     * 
+     * @param string $baseUrl The base URL to try feed paths against
+     * @return array Array of discovered feed entries (only returns first valid one found)
      */
     private static function tryCommonPaths(string $baseUrl): array
     {
@@ -210,10 +229,13 @@ class FeedDiscovery
     }
     
     /**
-     * Verify if a URL is actually a feed
+     * Verify if a URL points to a valid feed.
+     * 
+     * Fetches the content and attempts to parse it as a feed. Performs
+     * basic validation (content length check) before attempting parsing.
      * 
      * @param string $url The URL to verify
-     * @return bool True if it's a valid feed
+     * @return bool True if the URL points to a valid feed, false otherwise
      */
     private static function verifyFeed(string $url): bool
     {
@@ -236,11 +258,14 @@ class FeedDiscovery
     }
     
     /**
-     * Resolve a relative URL to an absolute URL
+     * Resolve a relative URL to an absolute URL.
      * 
-     * @param string $baseUrl The base URL
-     * @param string $relativeUrl The relative URL
-     * @return string|null The absolute URL or null if invalid
+     * Handles both absolute paths (starting with /) and relative paths.
+     * Normalizes the resulting URL by removing /./ and resolving ../ sequences.
+     * 
+     * @param string $baseUrl The base URL to resolve against
+     * @param string $relativeUrl The relative URL to resolve
+     * @return string|null The absolute URL, or null if the base URL is invalid
      */
     private static function resolveUrl(string $baseUrl, string $relativeUrl): ?string
     {

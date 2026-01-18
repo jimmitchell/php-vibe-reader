@@ -2,8 +2,26 @@
 
 namespace PhpRss;
 
+/**
+ * Feed parsing class for RSS, Atom, and JSON Feed formats.
+ * 
+ * Detects feed type and parses feed content into a standardized array format
+ * that the application can work with regardless of the original feed format.
+ */
 class FeedParser
 {
+    /**
+     * Parse feed content into a standardized format.
+     * 
+     * Automatically detects the feed type (RSS, Atom, or JSON Feed) and
+     * delegates to the appropriate parser. Returns a standardized array
+     * structure with feed metadata and items.
+     * 
+     * @param string $url The feed URL (used as fallback for missing feed links)
+     * @param string $content The raw feed content to parse
+     * @return array Parsed feed data with 'title', 'description', 'link', and 'items' keys
+     * @throws \Exception If the feed type is unsupported or parsing fails
+     */
     public static function parse(string $url, string $content): array
     {
         // Try to detect feed type
@@ -21,6 +39,16 @@ class FeedParser
         }
     }
 
+    /**
+     * Detect the type of feed format from content.
+     * 
+     * Checks for JSON Feed first (by validating JSON structure), then checks
+     * for RSS (looks for '<rss' or '<rdf:RDF'), then Atom (looks for '<feed').
+     * Defaults to RSS if no format is detected.
+     * 
+     * @param string $content The raw feed content to analyze
+     * @return string The detected feed type: 'rss', 'atom', or 'json'
+     */
     public static function detectFeedType(string $content): string
     {
         // Check for JSON Feed (look for JSON structure with feed-like properties)
@@ -49,6 +77,18 @@ class FeedParser
         return 'rss';
     }
 
+    /**
+     * Parse an RSS feed into a standardized format.
+     * 
+     * Handles RSS 2.0 and RSS 1.0 formats, including namespaced extensions
+     * like content:encoded and dc:creator. Uses multiple methods (direct
+     * access, XPath) to extract feed items for maximum compatibility.
+     * 
+     * @param string $content The raw RSS XML content
+     * @param string $url The feed URL (used as fallback for missing channel link)
+     * @return array Parsed RSS feed with 'title', 'description', 'link', and 'items' keys
+     * @throws \Exception If the RSS XML cannot be parsed
+     */
     private static function parseRSS(string $content, string $url): array
     {
         libxml_use_internal_errors(true);
@@ -149,7 +189,16 @@ class FeedParser
     }
 
     /**
-     * Parse a single RSS item
+     * Parse a single RSS item element.
+     * 
+     * Extracts all relevant fields from an RSS item, including handling
+     * namespaced elements like content:encoded and dc:creator. Tries
+     * multiple methods (namespace children, XPath) for compatibility.
+     * 
+     * @param \SimpleXMLElement $item The RSS item XML element
+     * @param string|null $contentNsUri The content namespace URI (for content:encoded)
+     * @param string|null $dcNsUri The Dublin Core namespace URI (for dc:creator)
+     * @return array Parsed item with 'title', 'link', 'content', 'summary', 'author', 'published_at', 'guid'
      */
     private static function parseRSSItem($item, ?string $contentNsUri, ?string $dcNsUri): array
     {
@@ -227,6 +276,17 @@ class FeedParser
         ];
     }
 
+    /**
+     * Parse an Atom feed into a standardized format.
+     * 
+     * Extracts feed metadata and entry elements from Atom XML format.
+     * Handles Atom-specific elements like <entry>, <content>, and <link href>.
+     * 
+     * @param string $content The raw Atom XML content
+     * @param string $url The feed URL (used as fallback for missing feed link)
+     * @return array Parsed Atom feed with 'title', 'description', 'link', and 'items' keys
+     * @throws \Exception If the Atom XML cannot be parsed
+     */
     private static function parseAtom(string $content, string $url): array
     {
         libxml_use_internal_errors(true);
@@ -263,6 +323,17 @@ class FeedParser
         return $feed;
     }
 
+    /**
+     * Parse a JSON Feed into a standardized format.
+     * 
+     * Follows the JSON Feed specification (https://jsonfeed.org/) to extract
+     * feed metadata and items. Handles both content_html and content_text fields.
+     * 
+     * @param string $content The raw JSON Feed content
+     * @param string $url The feed URL (used as fallback for missing home_page_url)
+     * @return array Parsed JSON Feed with 'title', 'description', 'link', and 'items' keys
+     * @throws \Exception If the JSON cannot be parsed
+     */
     private static function parseJSON(string $content, string $url): array
     {
         $json = json_decode($content, true);
@@ -293,6 +364,16 @@ class FeedParser
         return $feed;
     }
 
+    /**
+     * Parse a date string into a standardized database format.
+     * 
+     * Converts various date formats (RFC 2822, ISO 8601, etc.) into
+     * MySQL/SQLite compatible format (Y-m-d H:i:s). Returns null if
+     * the date cannot be parsed.
+     * 
+     * @param string $dateString The date string to parse (various formats accepted)
+     * @return string|null Date in 'Y-m-d H:i:s' format, or null if parsing fails
+     */
     private static function parseDate(string $dateString): ?string
     {
         if (empty($dateString)) {

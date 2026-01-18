@@ -6,8 +6,23 @@ use PhpRss\Auth;
 use PhpRss\Database;
 use PDO;
 
+/**
+ * API controller for JSON-based API endpoints.
+ * 
+ * Provides RESTful API endpoints for the frontend JavaScript application,
+ * returning data in JSON format. Some methods delegate to FeedController
+ * to avoid code duplication.
+ */
 class ApiController
 {
+    /**
+     * Get all feeds for the current user with counts.
+     * 
+     * Returns JSON array of feeds including folder associations, item counts,
+     * and unread counts. Dates are formatted for JSON (ISO 8601 UTC).
+     * 
+     * @return void Outputs JSON array of feed data
+     */
     public function getFeeds(): void
     {
         Auth::requireAuth();
@@ -43,24 +58,59 @@ class ApiController
         echo json_encode($feeds);
     }
 
+    /**
+     * Get feed items for a specific feed.
+     * 
+     * Delegates to FeedController::getItems() for consistency.
+     * 
+     * @param array $params Route parameters including 'id' (feed ID)
+     * @return void
+     */
     public function getFeedItems(array $params): void
     {
         $feedController = new \PhpRss\Controllers\FeedController();
         $feedController->getItems($params);
     }
 
+    /**
+     * Get a single feed item by ID.
+     * 
+     * Delegates to FeedController::getItem() for consistency.
+     * 
+     * @param array $params Route parameters including 'id' (item ID)
+     * @return void
+     */
     public function getItem(array $params): void
     {
         $feedController = new \PhpRss\Controllers\FeedController();
         $feedController->getItem($params);
     }
 
+    /**
+     * Mark a feed item as read.
+     * 
+     * Delegates to FeedController::markAsRead() for consistency.
+     * 
+     * @param array $params Route parameters including 'id' (item ID)
+     * @return void
+     */
     public function markAsRead(array $params): void
     {
         $feedController = new \PhpRss\Controllers\FeedController();
         $feedController->markAsRead($params);
     }
 
+    /**
+     * Search feed items across all user feeds.
+     * 
+     * Searches in title, content, summary, and author fields. Uses case-insensitive
+     * matching (ILIKE for PostgreSQL, LIKE for SQLite). Returns up to 100 results
+     * ordered by publication date. Dates are formatted for JSON.
+     * 
+     * Query parameter: 'q' - the search query string
+     * 
+     * @return void Outputs JSON array of matching feed items
+     */
     public function searchItems(): void
     {
         Auth::requireAuth();

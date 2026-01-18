@@ -5,13 +5,35 @@ namespace PhpRss;
 use PDO;
 use PDOException;
 
+/**
+ * Database connection and schema management class.
+ * 
+ * Handles database connections for both SQLite and PostgreSQL, manages
+ * the database schema, and provides migration capabilities for adding
+ * new columns and indexes as the application evolves.
+ */
 class Database
 {
+    /** @var PDO|null Singleton database connection instance */
     private static ?PDO $connection = null;
+    
+    /** @var string Database type: 'sqlite' or 'pgsql' */
     private static string $dbType;
+    
+    /** @var string Path to SQLite database file (used when DB_TYPE is 'sqlite') */
     private static string $dbPath = __DIR__ . '/../data/rss_reader.db';
+    
+    /** @var array Database configuration array (currently unused, reserved for future use) */
     private static array $dbConfig = [];
 
+    /**
+     * Initialize the database connection if it hasn't been established yet.
+     * 
+     * This method ensures the connection is lazy-loaded - it will only
+     * be created when first accessed.
+     * 
+     * @return void
+     */
     public static function init(): void
     {
         if (self::$connection === null) {
@@ -19,6 +41,16 @@ class Database
         }
     }
 
+    /**
+     * Establish a database connection based on environment variables.
+     * 
+     * Reads DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD
+     * from environment variables. Falls back to SQLite if DB_TYPE is not
+     * set or is not 'pgsql'/'postgresql'.
+     * 
+     * @return void
+     * @throws PDOException If connection fails
+     */
     private static function connect(): void
     {
         try {
@@ -56,6 +88,14 @@ class Database
         }
     }
 
+    /**
+     * Get the database connection instance.
+     * 
+     * If no connection exists, this will automatically initialize one.
+     * Returns a PDO instance configured for exceptions and associative array fetching.
+     * 
+     * @return PDO The database connection instance
+     */
     public static function getConnection(): PDO
     {
         if (self::$connection === null) {
@@ -64,6 +104,13 @@ class Database
         return self::$connection;
     }
 
+    /**
+     * Get the database type being used.
+     * 
+     * Returns either 'sqlite' or 'pgsql' based on the current connection.
+     * 
+     * @return string The database type: 'sqlite' or 'pgsql'
+     */
     public static function getDbType(): string
     {
         if (self::$connection === null) {
@@ -72,6 +119,18 @@ class Database
         return self::$dbType;
     }
 
+    /**
+     * Check if a column exists in a database table.
+     * 
+     * Uses database-specific queries to check column existence:
+     * - PostgreSQL: queries information_schema.columns
+     * - SQLite: queries PRAGMA table_info
+     * 
+     * @param PDO $db The database connection
+     * @param string $table The table name to check
+     * @param string $column The column name to check
+     * @return bool True if the column exists, false otherwise
+     */
     private static function columnExists(PDO $db, string $table, string $column): bool
     {
         if (self::$dbType === 'pgsql') {
@@ -96,6 +155,20 @@ class Database
         }
     }
 
+    /**
+     * Set up the database schema and run migrations.
+     * 
+     * Creates all necessary tables (users, folders, feeds, feed_items, read_items)
+     * if they don't exist, with syntax appropriate for the current database type.
+     * Also creates indexes for performance and handles migrations by checking for
+     * and adding columns that may not exist in older database schemas.
+     * 
+     * This method is idempotent - it can be safely called multiple times as it
+     * uses CREATE TABLE IF NOT EXISTS and checks for column existence before
+     * altering tables.
+     * 
+     * @return void
+     */
     public static function setup(): void
     {
         $db = self::getConnection();

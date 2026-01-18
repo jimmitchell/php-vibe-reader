@@ -5,8 +5,20 @@ namespace PhpRss\Controllers;
 use PhpRss\Auth;
 use PhpRss\View;
 
+/**
+ * Controller for handling authentication-related actions.
+ * 
+ * Manages user login, registration, logout, and the corresponding view pages.
+ */
 class AuthController
 {
+    /**
+     * Display the login page.
+     * 
+     * Redirects to dashboard if user is already authenticated.
+     * 
+     * @return void
+     */
     public function loginPage(): void
     {
         if (Auth::check()) {
@@ -16,6 +28,14 @@ class AuthController
         View::render('login');
     }
 
+    /**
+     * Handle user login form submission.
+     * 
+     * Validates username and password, attempts authentication, and redirects
+     * to dashboard on success or displays error on failure.
+     * 
+     * @return void
+     */
     public function login(): void
     {
         $username = $_POST['username'] ?? '';
@@ -34,6 +54,13 @@ class AuthController
         View::render('login', ['error' => 'Invalid username or password']);
     }
 
+    /**
+     * Display the registration page.
+     * 
+     * Redirects to dashboard if user is already authenticated.
+     * 
+     * @return void
+     */
     public function registerPage(): void
     {
         if (Auth::check()) {
@@ -43,6 +70,15 @@ class AuthController
         View::render('register');
     }
 
+    /**
+     * Handle user registration form submission.
+     * 
+     * Validates form data (username, email, password, confirmation), checks
+     * password length, and creates a new user account. Redirects to login
+     * page on success or displays error on failure.
+     * 
+     * @return void
+     */
     public function register(): void
     {
         $username = $_POST['username'] ?? '';
@@ -73,6 +109,13 @@ class AuthController
         View::render('register', ['error' => 'Username or email already exists']);
     }
 
+    /**
+     * Handle user logout.
+     * 
+     * Destroys the session and redirects to the login page.
+     * 
+     * @return void
+     */
     public function logout(): void
     {
         Auth::logout();

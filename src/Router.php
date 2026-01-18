@@ -2,8 +2,24 @@
 
 namespace PhpRss;
 
+/**
+ * Simple HTTP router for handling application routes.
+ * 
+ * Handles routing of HTTP requests to appropriate controller methods.
+ * Supports parameterized routes (e.g., /feeds/:id), static asset serving,
+ * and both GET and POST request methods.
+ */
 class Router
 {
+    /**
+     * Dispatch the current HTTP request to the appropriate route handler.
+     * 
+     * Parses the request URI, handles static asset serving, matches routes
+     * (exact and parameterized), and invokes the corresponding controller method.
+     * Returns 404 if no matching route is found.
+     * 
+     * @return void
+     */
     public function dispatch(): void
     {
         $path = $_SERVER['REQUEST_URI'] ?? '/';
@@ -97,6 +113,17 @@ class Router
         echo "Page not found";
     }
 
+    /**
+     * Check if a route pattern matches the given path and method.
+     * 
+     * Converts route patterns with parameters (e.g., /feeds/:id) to regex
+     * and tests if they match the provided path. Also checks HTTP method.
+     * 
+     * @param string $pattern The route pattern (e.g., "GET /feeds/:id")
+     * @param string $path The request path to match
+     * @param string $method The HTTP method to match
+     * @return bool True if the route matches, false otherwise
+     */
     private function matchRoute(string $pattern, string $path, string $method): bool
     {
         $parts = explode(' ', $pattern, 2);
@@ -116,6 +143,16 @@ class Router
         return preg_match($regex, $path);
     }
 
+    /**
+     * Extract route parameters from a path that matches a parameterized pattern.
+     * 
+     * Extracts named parameters (e.g., :id) from route patterns and returns
+     * them as an associative array with parameter names as keys.
+     * 
+     * @param string $pattern The route pattern with parameters (e.g., "/feeds/:id")
+     * @param string $path The actual path containing parameter values
+     * @return array Associative array of parameter names to values
+     */
     private function extractParams(string $pattern, string $path): array
     {
         $parts = explode(' ', $pattern, 2);
@@ -138,6 +175,17 @@ class Router
         return $params;
     }
 
+    /**
+     * Handle a matched route by instantiating the controller and calling the method.
+     * 
+     * Parses the handler string (format: "Controller@method"), instantiates
+     * the controller class, and invokes the method with the provided parameters.
+     * Returns 500 error if controller or method is not found.
+     * 
+     * @param string $handler The route handler string (e.g., "FeedController@add")
+     * @param array $params Route parameters to pass to the controller method
+     * @return void
+     */
     private function handleRoute(string $handler, array $params = []): void
     {
         [$controller, $method] = explode('@', $handler);

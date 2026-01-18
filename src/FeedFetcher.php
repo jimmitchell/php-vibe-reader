@@ -4,8 +4,25 @@ namespace PhpRss;
 
 use PDO;
 
+/**
+ * Feed fetching and update class.
+ * 
+ * Handles fetching feed content from URLs using cURL and updating
+ * feed data in the database when new items are available.
+ */
 class FeedFetcher
 {
+    /**
+     * Fetch feed content from a given URL.
+     * 
+     * Uses cURL to download feed content with appropriate headers and settings.
+     * Handles redirects, SSL verification, and timeouts. Throws exceptions
+     * on connection errors or non-200 HTTP responses.
+     * 
+     * @param string $url The feed URL to fetch
+     * @return string The raw feed content (XML for RSS/Atom, JSON for JSON Feed)
+     * @throws \Exception If the fetch fails or returns a non-200 HTTP status
+     */
     public static function fetch(string $url): string
     {
         $ch = curl_init($url);
@@ -39,6 +56,17 @@ class FeedFetcher
         return $content;
     }
 
+    /**
+     * Update a feed by fetching the latest content and storing new items.
+     * 
+     * Fetches the feed content, parses it, updates the feed metadata (title,
+     * description, last_fetched timestamp), and inserts any new feed items
+     * into the database. Uses database-specific conflict handling (ON CONFLICT
+     * for PostgreSQL, INSERT OR IGNORE for SQLite).
+     * 
+     * @param int $feedId The ID of the feed to update
+     * @return bool True if update was successful, false if feed not found or update failed
+     */
     public static function updateFeed(int $feedId): bool
     {
         $db = Database::getConnection();
