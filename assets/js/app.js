@@ -52,6 +52,14 @@ function formatDate(dateString, options = {}) {
 }
 
 function setupEventListeners() {
+    // Refresh all button
+    const refreshAllBtn = document.getElementById('refresh-all-btn');
+    if (refreshAllBtn) {
+        refreshAllBtn.addEventListener('click', async () => {
+            await refreshAllFeeds();
+        });
+    }
+
     // Create folder button
     const createFolderBtn = document.getElementById('create-folder-btn');
     if (createFolderBtn) {
@@ -286,6 +294,8 @@ async function loadFeeds() {
 }
 
 async function refreshAllFeeds() {
+    const btn = document.getElementById('refresh-all-btn');
+    if (btn) btn.disabled = true;
     try {
         const response = await fetch('/api/feeds');
         const feeds = await response.json();
@@ -296,8 +306,14 @@ async function refreshAllFeeds() {
         ));
         // Reload feeds list to show updated counts
         loadFeeds();
+        // Reload current feed items if a feed is selected
+        if (currentFeedId) {
+            await loadFeedItems(currentFeedId);
+        }
     } catch (error) {
         console.error('Error refreshing feeds:', error);
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 

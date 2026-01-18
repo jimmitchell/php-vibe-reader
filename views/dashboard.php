@@ -72,12 +72,17 @@
             <!-- Left Pane: Feeds List -->
             <aside class="feeds-pane">
                 <div class="pane-header pane-header-compact" style="flex-direction: row; gap: 8px;">
+                    <button id="refresh-all-btn" class="btn btn-icon btn-sm" aria-label="Refresh all feeds" title="Refresh all feeds">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                    </button>
+                    <button id="add-feed-btn" class="btn btn-primary btn-sm" style="flex: 1;">+ Add Feed</button>
                     <button id="create-folder-btn" class="btn btn-icon btn-sm" aria-label="Create Folder" title="Create Folder">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
                         </svg>
                     </button>
-                    <button id="add-feed-btn" class="btn btn-primary btn-sm" style="flex: 1;">+ Add Feed</button>
                 </div>
                 <div id="feeds-list" class="feeds-list">
                     <!-- Feeds will be loaded here -->
