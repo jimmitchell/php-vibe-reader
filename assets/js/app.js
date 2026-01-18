@@ -192,6 +192,9 @@ function setupEventListeners() {
             const file = e.target.files[0];
             if (!file) return;
 
+            // Show loading overlay
+            showLoadingOverlay('Importing OPML file...');
+
             const formData = new FormData();
             formData.append('opml_file', file);
 
@@ -211,19 +214,48 @@ function setupEventListeners() {
                     if (result.errors && result.errors.length > 0) {
                         message += '\n\nErrors:\n' + result.errors.join('\n');
                     }
+                    hideLoadingOverlay();
                     alert(message);
                     loadFeeds();
                 } else {
+                    hideLoadingOverlay();
                     alert('Error: ' + (result.error || 'Failed to import OPML file'));
                 }
             } catch (error) {
                 console.error('Error importing OPML:', error);
+                hideLoadingOverlay();
                 alert('Error importing OPML file. Please try again.');
             } finally {
                 // Reset file input
                 e.target.value = '';
             }
         });
+    }
+}
+
+function showLoadingOverlay(message = 'Loading...') {
+    // Remove existing overlay if any
+    const existing = document.getElementById('loading-overlay');
+    if (existing) {
+        existing.remove();
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `
+        <div class="loading-spinner-container">
+            <div class="loading-spinner"></div>
+            <p class="loading-message">${escapeHtml(message)}</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        overlay.remove();
     }
 }
 

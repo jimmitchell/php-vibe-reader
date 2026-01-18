@@ -22,6 +22,8 @@ A PHP-based RSS reading platform similar to Google Reader. This application allo
 - **Folder Organization**: Organize feeds into custom folders
 - **Folder Management**: Create, edit, delete, and reorder folders
 - **Drag-and-Drop to Folders**: Drag feeds onto folder headers to organize them
+- **OPML Export**: Export all your feeds and folders as an OPML file for backup or migration
+- **OPML Import**: Import feeds from OPML files exported from other RSS readers (preserves folder structure)
 
 ### Reading Experience
 - **Read Status Tracking**: Automatically marks items as read when viewed
@@ -183,7 +185,6 @@ The application uses PostgreSQL (when running in Docker) or SQLite (for manual i
 - Feed refresh scheduling
 - Keyboard shortcuts
 - Mobile-responsive design improvements
-- Export/import feed lists (OPML)
 
 ## License
 
