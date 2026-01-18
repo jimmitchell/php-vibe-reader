@@ -32,6 +32,20 @@ class Router
             $path = substr($path, strlen($basePath));
         }
 
+        // Serve favicon files
+        if ($path === '/favicon.svg' || $path === '/favicon.ico') {
+            $filePath = __DIR__ . '/..' . $path;
+            if (file_exists($filePath) && is_file($filePath)) {
+                if ($path === '/favicon.svg') {
+                    header('Content-Type: image/svg+xml');
+                } else {
+                    header('Content-Type: image/x-icon');
+                }
+                readfile($filePath);
+                return;
+            }
+        }
+
         // Serve static assets
         if (strpos($path, '/assets/') === 0) {
             $filePath = __DIR__ . '/..' . $path;

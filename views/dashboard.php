@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?php use PhpRss\Csrf; echo htmlspecialchars(Csrf::token()); ?>">
     <title>Dashboard - VibeReader</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="alternate icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/favicon.svg">
     <?php
     // Get font family from session first (most up-to-date), then user data, then default
     $fontFamily = $_SESSION['font_family'] ?? $user['font_family'] ?? 'system';
