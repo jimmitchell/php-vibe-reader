@@ -136,7 +136,7 @@ php -S localhost:8000
 ## Project Structure
 
 ```
-php-rss/
+php-vibe-reader/
 ├── assets/
 │   ├── css/
 │   │   └── style.css

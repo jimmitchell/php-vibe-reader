@@ -1,5 +1,5 @@
 {
-    "name": "php-rss/reader",
+    "name": "php-vibe-reader/reader",
     "description": "A PHP-based RSS reading platform similar to Google Reader",
     "type": "project",
     "require": {
