@@ -232,6 +232,20 @@
         var defaultThemeMode = <?= json_encode($user['default_theme_mode'] ?? 'system') ?>;
         var fontFamily = <?= json_encode($user['font_family'] ?? 'system') ?>;
     </script>
+    <!-- Utility modules -->
+    <script src="/assets/js/utils/csrf.js"></script>
+    <script src="/assets/js/utils/toast.js"></script>
+    <script src="/assets/js/utils/dateFormat.js"></script>
+    <script src="/assets/js/utils/ui.js"></script>
+    
+    <!-- Feature modules -->
+    <script src="/assets/js/modules/feeds.js"></script>
+    <script src="/assets/js/modules/items.js"></script>
+    <script src="/assets/js/modules/folders.js"></script>
+    <script src="/assets/js/modules/search.js"></script>
+    <script src="/assets/js/modules/preferences.js"></script>
+    
+    <!-- Main application -->
     <script src="/assets/js/app.js"></script>
 </body>
 </html>
