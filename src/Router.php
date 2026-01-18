@@ -76,6 +76,8 @@ class Router
             'GET /preferences' => 'FeedController@getPreferences',
             'POST /preferences' => 'FeedController@updatePreferences',
             'POST /preferences/toggle-hide-read' => 'FeedController@toggleHideRead',
+            'POST /preferences/toggle-hide-feeds-no-unread' => 'FeedController@toggleHideFeedsWithNoUnread',
+            'POST /preferences/toggle-item-sort-order' => 'FeedController@toggleItemSortOrder',
             'POST /preferences/toggle-theme' => 'FeedController@toggleTheme',
             'GET /folders' => 'FeedController@getFolders',
             'POST /folders' => 'FeedController@createFolder',

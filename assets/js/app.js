@@ -21,6 +21,18 @@ if (typeof hideReadItems === 'undefined') {
     window.hideReadItems = true;
 }
 
+// hideFeedsWithNoUnread is initialized from server-side script in dashboard.php
+// If not set, default to false
+if (typeof hideFeedsWithNoUnread === 'undefined') {
+    window.hideFeedsWithNoUnread = false;
+}
+
+// itemSortOrder is initialized from server-side script in dashboard.php
+// If not set, default to 'newest'
+if (typeof itemSortOrder === 'undefined') {
+    window.itemSortOrder = 'newest';
+}
+
 /**
  * Initialize the application when DOM is loaded.
  * Sets up theme, loads feeds, refreshes all feeds, and sets up event listeners.
@@ -28,6 +40,10 @@ if (typeof hideReadItems === 'undefined') {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize theme based on default_theme_mode
     initializeTheme();
+    
+    // Initialize button states
+    updateHideFeedsNoUnreadButton();
+    updateItemSortButton();
     
     loadFeeds().then(() => {
         // Fetch latest posts for all feeds on login/dashboard load
@@ -95,6 +111,14 @@ function setupEventListeners() {
         });
     }
 
+    // Toggle hide feeds with no unread button
+    const toggleHideFeedsNoUnreadBtn = document.getElementById('toggle-hide-feeds-no-unread-btn');
+    if (toggleHideFeedsNoUnreadBtn) {
+        toggleHideFeedsNoUnreadBtn.addEventListener('click', async () => {
+            await toggleHideFeedsWithNoUnread();
+        });
+    }
+
     // Create folder button
     const createFolderBtn = document.getElementById('create-folder-btn');
     if (createFolderBtn) {
@@ -153,6 +177,14 @@ function setupEventListeners() {
             await refreshFeed(currentFeedId);
         }
     });
+
+    // Toggle item sort order button
+    const toggleItemSortBtn = document.getElementById('toggle-item-sort-btn');
+    if (toggleItemSortBtn) {
+        toggleItemSortBtn.addEventListener('click', async () => {
+            await toggleItemSortOrder();
+        });
+    }
 
     // Theme toggle
     const themeToggleBtn = document.getElementById('theme-toggle-btn');
@@ -663,7 +695,9 @@ async function selectFeed(feedId) {
 
     // Show action buttons
     document.querySelector('.pane-header-actions').style.display = 'flex';
+    // Update button states
     updateHideReadButton();
+    updateItemSortButton();
 
     // Load items
     await loadFeedItems(feedId);
@@ -1054,8 +1088,36 @@ async function loadUserPreference() {
 
 const EYE_OFF_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 const EYE_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ARROW_UP_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+const ARROW_DOWN_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>';
 const SUN_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
 const MOON_SVG = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
+/**
+ * Update the item sort order button appearance based on current state.
+ * 
+ * Changes button title, aria-label, and icon to reflect sort order:
+ * - itemSortOrder 'oldest' = oldest first → shows "Sort by newest first" + arrow up
+ * - itemSortOrder 'newest' = newest first → shows "Sort by oldest first" + arrow down
+ */
+function updateItemSortButton() {
+    const btn = document.getElementById('toggle-item-sort-btn');
+    if (!btn) return;
+
+    const sortOrder = window.itemSortOrder || 'newest';
+    
+    // itemSortOrder 'oldest' = oldest first → button shows "Sort by newest first" + arrow up
+    // itemSortOrder 'newest' = newest first → button shows "Sort by oldest first" + arrow down
+    if (sortOrder === 'oldest') {
+        btn.setAttribute('aria-label', 'Sort by newest first');
+        btn.setAttribute('title', 'Sort by newest first');
+        btn.innerHTML = ARROW_UP_SVG;
+    } else {
+        btn.setAttribute('aria-label', 'Sort by oldest first');
+        btn.setAttribute('title', 'Sort by oldest first');
+        btn.innerHTML = ARROW_DOWN_SVG;
+    }
+}
 
 function updateHideReadButton() {
     const btn = document.getElementById('toggle-hide-read-btn');
@@ -1071,6 +1133,39 @@ function updateHideReadButton() {
         btn.setAttribute('aria-label', 'Hide all read');
         btn.setAttribute('title', 'Hide all read');
         btn.innerHTML = EYE_OFF_SVG;
+    }
+}
+
+/**
+ * Toggle the item_sort_order user preference between 'newest' and 'oldest'.
+ * 
+ * Sends a request to toggle the sort order and reloads the feed items
+ * to reflect the change.
+ * 
+ * @returns {Promise<void>}
+ */
+async function toggleItemSortOrder() {
+    try {
+        const response = await fetch('/preferences/toggle-item-sort-order', {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            window.itemSortOrder = result.item_sort_order;
+            updateItemSortButton();
+            
+            // Reload items with new sort order
+            if (currentFeedId) {
+                await loadFeedItems(currentFeedId);
+            }
+        } else {
+            alert('Error: ' + (result.error || 'Failed to toggle sort order'));
+        }
+    } catch (error) {
+        console.error('Error toggling item sort order:', error);
+        alert('Error toggling sort order. Please try again.');
     }
 }
 
@@ -1096,6 +1191,63 @@ async function toggleHideRead() {
     } catch (error) {
         console.error('Error toggling hide read:', error);
         alert('Error toggling preference. Please try again.');
+    }
+}
+
+/**
+ * Toggle the hide_feeds_with_no_unread user preference.
+ * 
+ * Sends a request to toggle the preference and reloads the feed list
+ * to reflect the change.
+ * 
+ * @returns {Promise<void>}
+ */
+async function toggleHideFeedsWithNoUnread() {
+    try {
+        const response = await fetch('/preferences/toggle-hide-feeds-no-unread', {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            window.hideFeedsWithNoUnread = result.hide_feeds_with_no_unread;
+            updateHideFeedsNoUnreadButton();
+            
+            // Reload feeds list with new filter
+            await loadFeeds();
+        } else {
+            alert('Error: ' + (result.error || 'Failed to toggle preference'));
+        }
+    } catch (error) {
+        console.error('Error toggling hide feeds with no unread:', error);
+        alert('Error toggling preference. Please try again.');
+    }
+}
+
+/**
+ * Update the hide feeds with no unread button appearance based on current state.
+ * 
+ * Changes button title, aria-label, and icon to reflect whether feeds are being hidden or shown.
+ * Uses eye icons similar to the hide read items toggle:
+ * - hideFeedsWithNoUnread true = feeds with no unread are hidden → shows "Show all feeds" + EYE_SVG (open eye)
+ * - hideFeedsWithNoUnread false = all feeds shown → shows "Hide feeds with no unread items" + EYE_OFF_SVG (eye-slash)
+ */
+function updateHideFeedsNoUnreadButton() {
+    const btn = document.getElementById('toggle-hide-feeds-no-unread-btn');
+    if (!btn) return;
+    const isActive = window.hideFeedsWithNoUnread || false;
+    
+    // hideFeedsWithNoUnread true = only feeds with unread shown → button shows "Show all feeds" + eye (no slash)
+    // hideFeedsWithNoUnread false = all feeds shown → button shows "Hide feeds with no unread items" + eye-slash
+    if (isActive) {
+        btn.setAttribute('aria-label', 'Show all feeds');
+        btn.setAttribute('title', 'Show all feeds');
+        btn.innerHTML = EYE_SVG;
+    } else {
+        btn.setAttribute('aria-label', 'Hide feeds with no unread items');
+        btn.setAttribute('title', 'Hide feeds with no unread items');
+        btn.innerHTML = EYE_OFF_SVG;
     }
 }
 

@@ -210,6 +210,16 @@ class FeedController
         $stmt->execute([$user['id'], $user['id']]);
         $feeds = $stmt->fetchAll();
 
+        // Filter out feeds with no unread items if preference is enabled
+        $hideFeedsWithNoUnread = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
+        if ($hideFeedsWithNoUnread) {
+            $feeds = array_filter($feeds, function($feed) {
+                return ($feed['unread_count'] ?? 0) > 0;
+            });
+            // Re-index array after filtering
+            $feeds = array_values($feeds);
+        }
+
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
         $feeds = array_map(function($feed) {
             return \PhpRss\Utils::formatDatesForJson($feed);
@@ -253,6 +263,10 @@ class FeedController
         // Check if user wants to hide read items
         $hideReadItems = $_SESSION['hide_read_items'] ?? ($user['hide_read_items'] ?? true);
         
+        // Get sort order preference (newest or oldest)
+        $sortOrder = $_SESSION['item_sort_order'] ?? ($user['item_sort_order'] ?? 'newest');
+        $sortDirection = ($sortOrder === 'oldest') ? 'ASC' : 'DESC';
+        
         $sql = "
             SELECT fi.*, 
                    CASE WHEN ri.id IS NOT NULL THEN 1 ELSE 0 END as is_read
@@ -265,7 +279,8 @@ class FeedController
             $sql .= " AND ri.id IS NULL";
         }
         
-        $sql .= " ORDER BY fi.published_at DESC, fi.created_at DESC";
+        // Order by published date based on user preference (newest first by default)
+        $sql .= " ORDER BY fi.published_at {$sortDirection}, fi.created_at {$sortDirection}";
         
         $stmt = $db->prepare($sql);
         $stmt->execute([$user['id'], $feedId]);
@@ -565,6 +580,69 @@ class FeedController
         $_SESSION['hide_read_items'] = $newValue;
 
         echo json_encode(['success' => true, 'hide_read_items' => $newValue]);
+    }
+
+    /**
+     * Toggle the item_sort_order user preference between 'newest' and 'oldest'.
+     * 
+     * Toggles the user's preference for sorting feed items by date (newest first
+     * or oldest first) and updates both the database and session.
+     * 
+     * @return void Outputs JSON with 'success' boolean and 'item_sort_order' value
+     */
+    public function toggleItemSortOrder(): void
+    {
+        Auth::requireAuth();
+        
+        header('Content-Type: application/json');
+        
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Get current sort order preference
+        $currentOrder = $_SESSION['item_sort_order'] ?? ($user['item_sort_order'] ?? 'newest');
+        // Toggle between 'newest' and 'oldest'
+        $newOrder = ($currentOrder === 'newest') ? 'oldest' : 'newest';
+        
+        // Update database
+        $stmt = $db->prepare("UPDATE users SET item_sort_order = ? WHERE id = ?");
+        $stmt->execute([$newOrder, $user['id']]);
+        
+        // Update session
+        $_SESSION['item_sort_order'] = $newOrder;
+
+        echo json_encode(['success' => true, 'item_sort_order' => $newOrder]);
+    }
+
+    /**
+     * Toggle the hide_feeds_with_no_unread user preference.
+     * 
+     * Toggles the user's preference for hiding feeds with no unread items
+     * and updates both the database and session.
+     * 
+     * @return void Outputs JSON with 'success' boolean and 'hide_feeds_with_no_unread' value
+     */
+    public function toggleHideFeedsWithNoUnread(): void
+    {
+        Auth::requireAuth();
+        
+        header('Content-Type: application/json');
+        
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Toggle the preference
+        $currentValue = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
+        $newValue = !$currentValue;
+        
+        // Update database
+        $stmt = $db->prepare("UPDATE users SET hide_feeds_with_no_unread = ? WHERE id = ?");
+        $stmt->execute([$newValue ? 1 : 0, $user['id']]);
+        
+        // Update session
+        $_SESSION['hide_feeds_with_no_unread'] = $newValue;
+
+        echo json_encode(['success' => true, 'hide_feeds_with_no_unread' => $newValue]);
     }
 
     /**

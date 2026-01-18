@@ -50,6 +50,16 @@ class ApiController
         $stmt->execute([$user['id'], $user['id']]);
         $feeds = $stmt->fetchAll();
 
+        // Filter out feeds with no unread items if preference is enabled
+        $hideFeedsWithNoUnread = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
+        if ($hideFeedsWithNoUnread) {
+            $feeds = array_filter($feeds, function($feed) {
+                return ($feed['unread_count'] ?? 0) > 0;
+            });
+            // Re-index array after filtering
+            $feeds = array_values($feeds);
+        }
+
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
         $feeds = array_map(function($feed) {
             return \PhpRss\Utils::formatDatesForJson($feed);

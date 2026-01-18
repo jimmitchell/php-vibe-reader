@@ -186,6 +186,8 @@ class Database
                 timezone VARCHAR(255) DEFAULT 'UTC',
                 default_theme_mode VARCHAR(50) DEFAULT 'system',
                 font_family VARCHAR(100) DEFAULT 'system',
+                hide_feeds_with_no_unread INTEGER DEFAULT 0,
+                item_sort_order VARCHAR(20) DEFAULT 'newest',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )");
 
@@ -330,6 +332,17 @@ class Database
         if (!self::columnExists($db, 'users', 'font_family')) {
             $type = self::$dbType === 'pgsql' ? "VARCHAR(100) DEFAULT 'system'" : "TEXT DEFAULT 'system'";
             $db->exec("ALTER TABLE users ADD COLUMN font_family {$type}");
+        }
+
+        // Add hide_feeds_with_no_unread column if it doesn't exist
+        if (!self::columnExists($db, 'users', 'hide_feeds_with_no_unread')) {
+            $db->exec("ALTER TABLE users ADD COLUMN hide_feeds_with_no_unread INTEGER DEFAULT 0");
+        }
+
+        // Add item_sort_order column if it doesn't exist
+        if (!self::columnExists($db, 'users', 'item_sort_order')) {
+            $type = self::$dbType === 'pgsql' ? "VARCHAR(20) DEFAULT 'newest'" : "TEXT DEFAULT 'newest'";
+            $db->exec("ALTER TABLE users ADD COLUMN item_sort_order {$type}");
         }
 
         if (!self::columnExists($db, 'feeds', 'sort_order')) {

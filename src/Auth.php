@@ -38,7 +38,7 @@ class Auth
         }
 
         $db = Database::getConnection();
-        $stmt = $db->prepare("SELECT id, username, email, COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode, COALESCE(font_family, 'system') as font_family FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, username, email, COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode, COALESCE(font_family, 'system') as font_family, COALESCE(hide_feeds_with_no_unread, 0) as hide_feeds_with_no_unread, COALESCE(item_sort_order, 'newest') as item_sort_order FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $user = $stmt->fetch();
         
@@ -48,6 +48,8 @@ class Auth
             $_SESSION['timezone'] = $user['timezone'] ?? 'UTC';
             $_SESSION['default_theme_mode'] = $user['default_theme_mode'] ?? 'system';
             $_SESSION['font_family'] = $user['font_family'] ?? 'system';
+            $_SESSION['hide_feeds_with_no_unread'] = (bool)($user['hide_feeds_with_no_unread'] ?? 0);
+            $_SESSION['item_sort_order'] = $user['item_sort_order'] ?? 'newest';
         }
         
         return $user ?: null;
@@ -74,7 +76,7 @@ class Auth
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             // Load user preferences
-            $stmt = $db->prepare("SELECT COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode, COALESCE(font_family, 'system') as font_family FROM users WHERE id = ?");
+            $stmt = $db->prepare("SELECT COALESCE(hide_read_items, 1) as hide_read_items, COALESCE(dark_mode, 0) as dark_mode, COALESCE(timezone, 'UTC') as timezone, COALESCE(default_theme_mode, 'system') as default_theme_mode, COALESCE(font_family, 'system') as font_family, COALESCE(hide_feeds_with_no_unread, 0) as hide_feeds_with_no_unread, COALESCE(item_sort_order, 'newest') as item_sort_order FROM users WHERE id = ?");
             $stmt->execute([$user['id']]);
             $pref = $stmt->fetch();
             $_SESSION['hide_read_items'] = (bool)($pref['hide_read_items'] ?? 1);
@@ -82,6 +84,8 @@ class Auth
             $_SESSION['timezone'] = $pref['timezone'] ?? 'UTC';
             $_SESSION['default_theme_mode'] = $pref['default_theme_mode'] ?? 'system';
             $_SESSION['font_family'] = $pref['font_family'] ?? 'system';
+            $_SESSION['hide_feeds_with_no_unread'] = (bool)($pref['hide_feeds_with_no_unread'] ?? 0);
+            $_SESSION['item_sort_order'] = $pref['item_sort_order'] ?? 'newest';
             return true;
         }
 
