@@ -70,7 +70,10 @@ class Router
             'GET /api/feeds' => 'ApiController@getFeeds',
             'GET /api/feeds/:id/items' => 'ApiController@getFeedItems',
             'GET /api/items/:id' => 'ApiController@getItem',
+            'GET /api/search' => 'ApiController@searchItems',
             'POST /api/items/:id/read' => 'ApiController@markAsRead',
+            'GET /opml/export' => 'FeedController@exportOpml',
+            'POST /opml/import' => 'FeedController@importOpml',
         ];
 
         $routeKey = "$method $path";

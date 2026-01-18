@@ -60,4 +60,71 @@ class ApiController
         $feedController = new \PhpRss\Controllers\FeedController();
         $feedController->markAsRead($params);
     }
+
+    public function searchItems(): void
+    {
+        Auth::requireAuth();
+        
+        header('Content-Type: application/json');
+        
+        $query = trim($_GET['q'] ?? '');
+        if (empty($query)) {
+            echo json_encode([]);
+            return;
+        }
+
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Search in title, content, summary, and author
+        // Use ILIKE for PostgreSQL (case-insensitive) or LIKE for SQLite
+        $dbType = Database::getDbType();
+        $likeOperator = $dbType === 'pgsql' ? 'ILIKE' : 'LIKE';
+        
+        $searchPattern = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $query) . '%';
+        
+        $stmt = $db->prepare("
+            SELECT 
+                fi.id,
+                fi.title,
+                fi.link,
+                fi.content,
+                fi.summary,
+                fi.author,
+                fi.published_at,
+                f.id as feed_id,
+                f.title as feed_title,
+                CASE WHEN ri.id IS NULL THEN 0 ELSE 1 END as is_read
+            FROM feed_items fi
+            INNER JOIN feeds f ON fi.feed_id = f.id
+            LEFT JOIN read_items ri ON ri.feed_item_id = fi.id AND ri.user_id = ?
+            WHERE f.user_id = ?
+            AND (
+                fi.title {$likeOperator} ? OR
+                fi.content {$likeOperator} ? OR
+                fi.summary {$likeOperator} ? OR
+                fi.author {$likeOperator} ?
+            )
+            ORDER BY fi.published_at DESC
+            LIMIT 100
+        ");
+        
+        $stmt->execute([
+            $user['id'],
+            $user['id'],
+            $searchPattern,
+            $searchPattern,
+            $searchPattern,
+            $searchPattern
+        ]);
+        
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Format dates for JSON
+        $results = array_map(function($item) {
+            return \PhpRss\Utils::formatDatesForJson($item);
+        }, $results);
+
+        echo json_encode($results);
+    }
 }

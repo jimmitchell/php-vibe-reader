@@ -21,7 +21,7 @@ services:
     build: .
     container_name: vibereader
     ports:
-      - "8000:8000"
+      - "9999:8000"
     volumes:
       # Allow for code changes during development
       - ./src:/var/www/html/src

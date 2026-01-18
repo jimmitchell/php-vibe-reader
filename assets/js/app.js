@@ -147,6 +147,84 @@ function setupEventListeners() {
 
     // Feed drag-and-drop reorder (delegation on list, set up once)
     setupFeedDragDrop(document.getElementById('feeds-list'));
+
+    // Search functionality
+    const searchInput = document.getElementById('search-input');
+    let searchTimeout = null;
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            if (query.length === 0) {
+                clearSearch();
+                return;
+            }
+
+            // Debounce search
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 300);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                searchInput.value = '';
+                clearSearch();
+                searchInput.blur();
+            }
+        });
+    }
+
+    // OPML Export
+    const exportOpmlBtn = document.getElementById('export-opml-btn');
+    if (exportOpmlBtn) {
+        exportOpmlBtn.addEventListener('click', () => {
+            window.location.href = '/opml/export';
+        });
+    }
+
+    // OPML Import
+    const importOpmlInput = document.getElementById('import-opml-input');
+    if (importOpmlInput) {
+        importOpmlInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('opml_file', file);
+
+            try {
+                const response = await fetch('/opml/import', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    let message = `Successfully imported ${result.added} feed(s).`;
+                    if (result.skipped > 0) {
+                        message += ` ${result.skipped} feed(s) were skipped (already exist).`;
+                    }
+                    if (result.errors && result.errors.length > 0) {
+                        message += '\n\nErrors:\n' + result.errors.join('\n');
+                    }
+                    alert(message);
+                    loadFeeds();
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to import OPML file'));
+                }
+            } catch (error) {
+                console.error('Error importing OPML:', error);
+                alert('Error importing OPML file. Please try again.');
+            } finally {
+                // Reset file input
+                e.target.value = '';
+            }
+        });
+    }
 }
 
 async function loadFeeds() {
@@ -1033,6 +1111,89 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+let isSearchMode = false;
+let searchResults = [];
+
+async function performSearch(query) {
+    if (!query || query.trim().length === 0) {
+        clearSearch();
+        return;
+    }
+
+    isSearchMode = true;
+    try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const results = await response.json();
+        searchResults = results;
+        displaySearchResults(results);
+    } catch (error) {
+        console.error('Error performing search:', error);
+        document.getElementById('items-list').innerHTML = '<div class="empty-state">Error performing search</div>';
+    }
+}
+
+function clearSearch() {
+    isSearchMode = false;
+    searchResults = [];
+    
+    // Restore normal view - show current feed items or empty state
+    if (currentFeedId) {
+        loadFeedItems(currentFeedId);
+    } else {
+        document.getElementById('items-list').innerHTML = '<div class="empty-state">Select a feed from the left to view items</div>';
+        document.getElementById('items-title').textContent = 'Select a feed';
+    }
+    
+    // Clear item content if no item selected
+    if (!currentItemId) {
+        document.getElementById('item-content').innerHTML = '<div class="empty-state">Select an item to read</div>';
+        document.getElementById('content-title').textContent = 'Item';
+    }
+}
+
+function displaySearchResults(results) {
+    const itemsList = document.getElementById('items-list');
+    const itemsTitle = document.getElementById('items-title');
+    
+    itemsTitle.textContent = `Search Results (${results.length})`;
+
+    if (results.length === 0) {
+        itemsList.innerHTML = '<div class="empty-state">No results found</div>';
+        document.getElementById('item-content').innerHTML = '<div class="empty-state">No results found</div>';
+        document.getElementById('content-title').textContent = 'Search Results';
+        return;
+    }
+
+    itemsList.innerHTML = results.map(item => {
+        const displayTitle = getItemDisplayTitle(item);
+        return `
+        <div class="item-entry ${item.is_read ? '' : 'unread'}" 
+             data-item-id="${item.id}">
+            <div class="item-entry-title">${escapeHtml(displayTitle)}</div>
+            <div class="item-entry-meta">
+                <span class="item-feed-name">${escapeHtml(item.feed_title || 'Unknown Feed')}</span>
+                ${item.published_at ? `• ${formatDate(item.published_at, { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}
+                ${item.author ? `• ${escapeHtml(item.author)}` : ''}
+            </div>
+        </div>
+        `;
+    }).join('');
+
+    // Add click handlers for search results
+    itemsList.querySelectorAll('.item-entry').forEach(item => {
+        item.addEventListener('click', () => {
+            const itemId = parseInt(item.dataset.itemId);
+            selectItem(itemId);
+        });
+    });
+
+    // Hide feed action buttons when in search mode
+    const paneHeaderActions = document.querySelector('.pane-header-actions');
+    if (paneHeaderActions) {
+        paneHeaderActions.style.display = 'none';
+    }
 }
 
 function stripHtml(html) {

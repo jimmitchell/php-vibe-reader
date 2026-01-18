@@ -766,4 +766,282 @@ class FeedController
 
         echo json_encode(['success' => true]);
     }
+
+    public function exportOpml(): void
+    {
+        Auth::requireAuth();
+        
+        $user = Auth::user();
+        $db = Database::getConnection();
+
+        // Get all feeds with folder information
+        $stmt = $db->prepare("
+            SELECT f.id, f.title, f.url, f.description, f.feed_type,
+                   fld.name as folder_name
+            FROM feeds f
+            LEFT JOIN folders fld ON f.folder_id = fld.id
+            WHERE f.user_id = ?
+            ORDER BY COALESCE(fld.sort_order, 999999) ASC, fld.name ASC, f.sort_order ASC
+        ");
+        $stmt->execute([$user['id']]);
+        $feeds = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Group feeds by folder
+        $foldersMap = [];
+        $feedsWithoutFolder = [];
+        foreach ($feeds as $feed) {
+            if ($feed['folder_name']) {
+                if (!isset($foldersMap[$feed['folder_name']])) {
+                    $foldersMap[$feed['folder_name']] = [];
+                }
+                $foldersMap[$feed['folder_name']][] = $feed;
+            } else {
+                $feedsWithoutFolder[] = $feed;
+            }
+        }
+
+        // Generate OPML XML
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<opml version="2.0">' . "\n";
+        $xml .= '  <head>' . "\n";
+        $xml .= '    <title>VibeReader Feeds Export</title>' . "\n";
+        $xml .= '    <dateCreated>' . date('D, d M Y H:i:s T') . '</dateCreated>' . "\n";
+        $xml .= '  </head>' . "\n";
+        $xml .= '  <body>' . "\n";
+
+        // Add feeds without folders
+        foreach ($feedsWithoutFolder as $feed) {
+            $xml .= '    <outline type="rss" text="' . htmlspecialchars($feed['title']) . '"';
+            if ($feed['description']) {
+                $xml .= ' description="' . htmlspecialchars($feed['description']) . '"';
+            }
+            $xml .= ' xmlUrl="' . htmlspecialchars($feed['url']) . '"/>' . "\n";
+        }
+
+        // Add folders with feeds
+        foreach ($foldersMap as $folderName => $folderFeeds) {
+            $xml .= '    <outline text="' . htmlspecialchars($folderName) . '">' . "\n";
+            foreach ($folderFeeds as $feed) {
+                $xml .= '      <outline type="rss" text="' . htmlspecialchars($feed['title']) . '"';
+                if ($feed['description']) {
+                    $xml .= ' description="' . htmlspecialchars($feed['description']) . '"';
+                }
+                $xml .= ' xmlUrl="' . htmlspecialchars($feed['url']) . '"/>' . "\n";
+            }
+            $xml .= '    </outline>' . "\n";
+        }
+
+        $xml .= '  </body>' . "\n";
+        $xml .= '</opml>';
+
+        // Output as file download
+        header('Content-Type: application/xml; charset=utf-8');
+        header('Content-Disposition: attachment; filename="vibereader-feeds.opml"');
+        echo $xml;
+    }
+
+    public function importOpml(): void
+    {
+        Auth::requireAuth();
+        
+        // Ensure we output JSON even if there are errors
+        header('Content-Type: application/json');
+        
+        // Catch any PHP errors/warnings
+        ob_start();
+        
+        try {
+            if (!isset($_FILES['opml_file']) || $_FILES['opml_file']['error'] !== UPLOAD_ERR_OK) {
+                $errorMsg = 'No file uploaded';
+                if (isset($_FILES['opml_file']['error'])) {
+                    switch ($_FILES['opml_file']['error']) {
+                        case UPLOAD_ERR_INI_SIZE:
+                        case UPLOAD_ERR_FORM_SIZE:
+                            $errorMsg = 'File too large';
+                            break;
+                        case UPLOAD_ERR_PARTIAL:
+                            $errorMsg = 'File partially uploaded';
+                            break;
+                        case UPLOAD_ERR_NO_FILE:
+                            $errorMsg = 'No file uploaded';
+                            break;
+                        case UPLOAD_ERR_NO_TMP_DIR:
+                            $errorMsg = 'Missing temporary folder';
+                            break;
+                        case UPLOAD_ERR_CANT_WRITE:
+                            $errorMsg = 'Failed to write file to disk';
+                            break;
+                        case UPLOAD_ERR_EXTENSION:
+                            $errorMsg = 'File upload stopped by extension';
+                            break;
+                    }
+                }
+                ob_end_clean();
+                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                return;
+            }
+
+            $file = $_FILES['opml_file']['tmp_name'];
+            $content = file_get_contents($file);
+            
+            if ($content === false) {
+                ob_end_clean();
+                echo json_encode(['success' => false, 'error' => 'Could not read uploaded file']);
+                return;
+            }
+
+            // Parse OPML XML
+            libxml_use_internal_errors(true);
+            $xml = simplexml_load_string($content);
+            
+            if ($xml === false) {
+                $libxmlErrors = libxml_get_errors();
+                libxml_clear_errors();
+                ob_end_clean();
+                $errorMsg = 'Invalid OPML file';
+                if (!empty($libxmlErrors)) {
+                    $errorMsg .= ': ' . $libxmlErrors[0]->message;
+                }
+                echo json_encode(['success' => false, 'error' => $errorMsg]);
+                return;
+            }
+
+            $user = Auth::user();
+            $db = Database::getConnection();
+            $addedCount = 0;
+            $skippedCount = 0;
+            $errors = [];
+
+            // Function to recursively process outlines
+            $processOutlines = function($outlines, $folderId = null) use (&$processOutlines, $db, $user, &$addedCount, &$skippedCount, &$errors) {
+            if (!$outlines) {
+                return;
+            }
+            
+            foreach ($outlines as $outline) {
+                $attributes = $outline->attributes();
+                
+                // Check if this outline has an xmlUrl (it's a feed)
+                $xmlUrl = isset($attributes['xmlUrl']) ? (string)$attributes['xmlUrl'] : null;
+                
+                if ($xmlUrl) {
+                    // This is a feed
+                    $feedUrl = $xmlUrl;
+                    $feedTitle = isset($attributes['text']) ? (string)$attributes['text'] : (isset($attributes['title']) ? (string)$attributes['title'] : 'Untitled Feed');
+                    
+                    if (empty($feedTitle)) {
+                        $feedTitle = 'Untitled Feed';
+                    }
+
+                    // Check if feed already exists
+                    $stmt = $db->prepare("SELECT id FROM feeds WHERE user_id = ? AND url = ?");
+                    $stmt->execute([$user['id'], $feedUrl]);
+                    if ($stmt->fetch()) {
+                        $skippedCount++;
+                        continue;
+                    }
+
+                    // Try to discover and add the feed
+                    try {
+                        // Use the feed URL directly - FeedDiscovery is mainly for website URLs
+                        // Since OPML already contains feed URLs (xmlUrl), we can use them directly
+                        $content = FeedFetcher::fetch($feedUrl);
+                        $parsed = FeedParser::parse($feedUrl, $content);
+                        
+                        // Insert feed
+                        $stmt = $db->prepare("
+                            INSERT INTO feeds (user_id, folder_id, title, url, feed_type, description, sort_order) 
+                            VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM feeds WHERE user_id = ?))
+                        ");
+                        $stmt->execute([
+                            $user['id'],
+                            $folderId,
+                            $parsed['title'] ?: $feedTitle,
+                            $feedUrl,
+                            FeedParser::detectFeedType($content),
+                            $parsed['description'] ?? null,
+                            $user['id']
+                        ]);
+                        
+                        $addedCount++;
+                    } catch (\Exception $e) {
+                        $errors[] = "Failed to add feed '$feedTitle': " . $e->getMessage();
+                        $skippedCount++;
+                    }
+                } else {
+                    // This might be a folder (category) - check if it has text/title but no xmlUrl
+                    $folderName = null;
+                    if (isset($attributes['text'])) {
+                        $folderName = (string)$attributes['text'];
+                    } elseif (isset($attributes['title'])) {
+                        $folderName = (string)$attributes['title'];
+                    }
+                    
+                    // Check if this outline has children (nested outlines)
+                    $hasChildren = isset($outline->outline) && count($outline->outline) > 0;
+                    
+                    $currentFolderId = $folderId;
+                    
+                    // If it has a name and children, treat it as a folder
+                    if ($folderName && $hasChildren) {
+                        // Check if folder exists, create if not
+                        $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ?");
+                        $stmt->execute([$user['id'], $folderName]);
+                        $folder = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($folder) {
+                            $currentFolderId = $folder['id'];
+                        } else {
+                            // Create folder
+                            $stmt = $db->prepare("
+                                INSERT INTO folders (user_id, name, sort_order) 
+                                VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM folders WHERE user_id = ?))
+                            ");
+                            $stmt->execute([$user['id'], $folderName, $user['id']]);
+                            $currentFolderId = $db->lastInsertId();
+                        }
+                    }
+                    
+                    // Process children if they exist
+                    if ($hasChildren) {
+                        $processOutlines($outline->outline, $currentFolderId);
+                    }
+                }
+            }
+            };
+
+            // Process top-level outlines
+            if (isset($xml->body->outline)) {
+                // Handle both single outline and multiple outlines
+                $outlines = $xml->body->outline;
+                if (count($outlines) > 0) {
+                    $processOutlines($outlines);
+                }
+            }
+
+            ob_end_clean();
+            echo json_encode([
+                'success' => true,
+                'added' => $addedCount,
+                'skipped' => $skippedCount,
+                'errors' => $errors
+            ]);
+        } catch (\Exception $e) {
+            $output = ob_get_clean();
+            error_log("OPML Import Error: " . $e->getMessage());
+            error_log("Output buffer: " . $output);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Import failed: ' . $e->getMessage()
+            ]);
+        } catch (\Error $e) {
+            $output = ob_get_clean();
+            error_log("OPML Import Fatal Error: " . $e->getMessage());
+            error_log("Output buffer: " . $output);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Import failed: ' . $e->getMessage()
+            ]);
+        }
+    }
 }

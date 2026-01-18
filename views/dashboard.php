@@ -40,6 +40,12 @@
     <div class="app-container">
         <header class="app-header">
             <h1>VibeReader</h1>
+            <div class="header-search">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input type="search" id="search-input" class="search-input" placeholder="Search articles..." autocomplete="off">
+            </div>
             <div class="header-actions">
                 <span class="username"><?= htmlspecialchars($user['username']) ?></span>
                 <button id="theme-toggle-btn" class="btn btn-icon btn-sm" aria-label="<?= !empty($user['dark_mode']) ? 'Switch to light mode' : 'Switch to dark mode' ?>" title="<?= !empty($user['dark_mode']) ? 'Switch to light mode' : 'Switch to dark mode' ?>">
@@ -172,6 +178,26 @@
                         <option value="Nunito" <?= ($user['font_family'] ?? 'system') === 'Nunito' ? 'selected' : '' ?>>Nunito</option>
                         <option value="Mulish" <?= ($user['font_family'] ?? 'system') === 'Mulish' ? 'selected' : '' ?>>Mulish</option>
                     </select>
+                </div>
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
+                <div class="form-group">
+                    <label>Feed Management</label>
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button type="button" id="export-opml-btn" class="btn btn-secondary" style="flex: 1;" title="Export OPML">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                            Export OPML
+                        </button>
+                        <label for="import-opml-input" class="btn btn-secondary" style="flex: 1; cursor: pointer; margin: 0; color: white;" title="Import OPML">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: middle;">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Import OPML
+                            <input type="file" id="import-opml-input" accept=".opml,.xml" style="display: none;">
+                        </label>
+                    </div>
+                    <small style="color: var(--text-light); font-size: 0.9em; display: block; margin-top: 8px;">Export your feeds or import feeds from another RSS reader</small>
                 </div>
                 <button type="submit" class="btn btn-primary">Save Preferences</button>
             </form>
