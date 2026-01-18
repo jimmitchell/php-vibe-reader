@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2024
+
+### Added
+- **Custom Error Pages**: User-friendly error pages for 404 (Not Found), 500 (Server Error), and 403 (Forbidden) with consistent styling and navigation
+- **Comprehensive Test Coverage**: Expanded unit test suite with 35 new tests covering core functionality
+  - **CsrfTest**: 10 tests for CSRF token generation, validation, expiration, and field generation
+  - **AuthTest**: 13 tests for authentication, login/logout, registration, and user preferences
+  - **FeedParserTest**: 12 tests for feed type detection (RSS/Atom/JSON) and parsing functionality
+
+### Changed
+- **Router Error Handling**: Router now displays custom error pages instead of plain text messages
+- **Test Infrastructure**: Test suite expanded from 24 to 59 tests (146% increase) with 113 total assertions
+
+### Improved
+- **User Experience**: Professional error pages with helpful messages and navigation options
+- **Code Quality**: Significantly improved test coverage for authentication, CSRF protection, and feed parsing
+- **Error Handling**: Better error presentation for users encountering 404, 500, or 403 errors
+
+### Technical Details
+- Error pages follow the same design system as the rest of the application
+- Router's `showErrorPage()` method handles error page rendering
+- All new tests follow existing test patterns and use proper database setup/teardown
+- Test coverage now includes: Config, Logger, FeedService, RateLimiter, Response, Csrf, Auth, and FeedParser
+
 ## [1.1.0] - 2024
 
 ### Added

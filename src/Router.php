@@ -2,6 +2,8 @@
 
 namespace PhpRss;
 
+use PhpRss\View;
+
 /**
  * Simple HTTP router for handling application routes.
  * 
@@ -126,8 +128,7 @@ class Router
         }
 
         // 404
-        http_response_code(404);
-        echo "Page not found";
+        $this->showErrorPage(404);
     }
 
     /**
@@ -209,18 +210,40 @@ class Router
         $controllerClass = "PhpRss\\Controllers\\$controller";
         
         if (!class_exists($controllerClass)) {
-            http_response_code(500);
-            echo "Controller not found";
+            $this->showErrorPage(500);
             return;
         }
 
         $controllerInstance = new $controllerClass();
         if (!method_exists($controllerInstance, $method)) {
-            http_response_code(500);
-            echo "Method not found";
+            $this->showErrorPage(500);
             return;
         }
 
         $controllerInstance->$method($params);
+    }
+
+    /**
+     * Show an error page based on the HTTP status code.
+     * 
+     * Renders the appropriate error page template (404, 500, 403) and
+     * sets the corresponding HTTP response code.
+     * 
+     * @param int $statusCode The HTTP status code (404, 500, or 403)
+     * @return void
+     */
+    private function showErrorPage(int $statusCode): void
+    {
+        http_response_code($statusCode);
+        
+        $templateMap = [
+            404 => 'error_404',
+            500 => 'error_500',
+            403 => 'error_403',
+        ];
+        
+        $template = $templateMap[$statusCode] ?? 'error_500';
+        
+        View::render($template);
     }
 }
