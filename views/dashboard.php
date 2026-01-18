@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?php use PhpRss\Csrf; echo htmlspecialchars(Csrf::token()); ?>">
+    <meta name="application-name" content="<?php use PhpRss\Version; echo htmlspecialchars(Version::getAppName()); ?>">
+    <meta name="version" content="<?php echo htmlspecialchars(Version::getVersion()); ?>">
     <title>Dashboard - VibeReader</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="alternate icon" href="/favicon.ico">

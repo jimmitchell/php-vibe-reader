@@ -3,6 +3,7 @@
 namespace PhpRss;
 
 use PDO;
+use PhpRss\Version;
 
 /**
  * Feed fetching and update class.
@@ -127,7 +128,7 @@ class FeedFetcher
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; VibeReader/1.0)',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; ' . Version::getVersionString() . ')',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_HTTPHEADER => [
                 'Accept: application/rss+xml, application/atom+xml, application/json, text/xml, application/xml, text/html, */*'

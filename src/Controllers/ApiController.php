@@ -191,4 +191,22 @@ class ApiController
 
         echo json_encode($results);
     }
+
+    /**
+     * Get application version information.
+     * 
+     * Returns the application name and version number.
+     * 
+     * @return void Outputs JSON with version information
+     */
+    public function getVersion(): void
+    {
+        header('Content-Type: application/json');
+        
+        echo json_encode([
+            'app_name' => \PhpRss\Version::getAppName(),
+            'version' => \PhpRss\Version::getVersion(),
+            'version_string' => \PhpRss\Version::getVersionString()
+        ]);
+    }
 }

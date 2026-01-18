@@ -106,6 +106,7 @@ class Router
             'POST /api/items/:id/read' => 'ApiController@markAsRead',
             'GET /opml/export' => 'FeedController@exportOpml',
             'POST /opml/import' => 'FeedController@importOpml',
+            'GET /api/version' => 'ApiController@getVersion',
         ];
 
         $routeKey = "$method $path";

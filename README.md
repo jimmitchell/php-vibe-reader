@@ -1,5 +1,7 @@
 # VibeReader
 
+**Version:** 1.0.0
+
 A PHP-based RSS reading platform similar to Google Reader. This application allows you to securely manage and read RSS, Atom, and JSON feeds with a clean three-pane interface.
 
 ## Features
@@ -185,6 +187,22 @@ The application uses PostgreSQL (when running in Docker) or SQLite (for manual i
 - Feed refresh scheduling
 - Keyboard shortcuts
 - Mobile-responsive design improvements
+
+## AI Development Notice
+
+> **🤖 AI-Generated Project**
+> 
+> This project was developed entirely using AI-assisted coding through **Cursor IDE**. All features, code, and functionality were created through AI prompts and automated code generation. No manual coding was performed in the development of this application.
+> 
+> **Development Tool:**
+> - [Cursor IDE](https://cursor.com/) - AI-powered code editor with integrated AI assistance
+> 
+> **AI Models Used:**
+> - **Claude Sonnet 4.5** (Anthropic) - Primary model for code generation, architecture design, and feature implementation
+> - **Claude Sonnet 3.5** (Anthropic) - Used for code completion and inline suggestions
+> - **GPT-4** (OpenAI) - Used for code review, security auditing, and optimization suggestions
+> 
+> This notice is provided for transparency about the development process. The codebase demonstrates the capabilities of modern AI-assisted development tools in creating full-featured web applications with comprehensive security features, modern UI/UX, and production-ready code quality.
 
 ## License
 
