@@ -716,9 +716,31 @@ a.btn-icon {
     flex-shrink: 0;
 }
 
+.item-content-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
 .item-content-meta {
     color: var(--text-light);
     font-size: 0.9em;
+}
+
+.item-content-link {
+    flex-shrink: 0;
+}
+
+.item-content-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.9em;
+}
+
+.item-content-link a:hover {
+    text-decoration: underline;
 }
 
 .item-content-meta a {

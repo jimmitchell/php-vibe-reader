@@ -220,18 +220,34 @@ function renderItemContent(item) {
             </svg>
         </button>` : '';
 
+    // Build title row with mark unread button on the right
+    const titleRow = markUnreadButton ? `
+        <div class="item-content-title-row">
+            <h1 class="item-content-title">${escapeHtml(displayTitle)}</h1>
+            ${markUnreadButton}
+        </div>
+    ` : `<h1 class="item-content-title">${escapeHtml(displayTitle)}</h1>`;
+
+    // Build meta row with "read original" link on the right
+    const metaContent = `
+        ${item.published_at ? formatDate(item.published_at, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+        ${item.author ? ` • ${escapeHtml(item.author)}` : ''}
+    `;
+    
+    const metaRow = link ? `
+        <div class="item-content-meta-row">
+            <div class="item-content-meta">${metaContent}</div>
+            <div class="item-content-link">${link}</div>
+        </div>
+    ` : `<div class="item-content-meta">${metaContent}</div>`;
+
     itemContent.innerHTML = `
         <div class="item-content-body">
-            <h1 class="item-content-title">${escapeHtml(displayTitle)}</h1>
-            <div class="item-content-meta">
-                ${item.published_at ? formatDate(item.published_at, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                ${item.author ? ` • ${escapeHtml(item.author)}` : ''}
-            </div>
+            ${titleRow}
+            ${metaRow}
             <div class="item-content-text">
                 ${content}
             </div>
-            ${link ? `<div class="item-content-link">${link}</div>` : ''}
-            ${markUnreadButton ? `<div class="item-content-actions">${markUnreadButton}</div>` : ''}
         </div>
     `;
     
