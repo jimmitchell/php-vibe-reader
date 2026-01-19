@@ -1,6 +1,6 @@
 # VibeReader
 
-**Version:** 1.1.1
+**Version:** 1.2.1
 
 A PHP-based RSS reading platform similar to Google Reader. This application allows you to securely manage and read RSS, Atom, and JSON feeds with a clean three-pane interface.
 

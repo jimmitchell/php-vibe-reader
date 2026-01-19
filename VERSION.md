@@ -2,7 +2,7 @@
 
 This project uses semantic versioning (MAJOR.MINOR.PATCH).
 
-## Current Version: 1.2.0
+## Current Version: 1.2.1
 
 ## How to Update the Version
 
@@ -29,7 +29,11 @@ Follow [Semantic Versioning](https://semver.org/):
 
 ## Version History
 
-### 1.2.0 (Current)
+### 1.2.1 (Current)
+- Security audit update
+- Changelog documentation updates
+
+### 1.2.0
 - Background job system with database-backed queue
 - Static analysis (PHPStan) and code style enforcement (PHP-CS-Fixer)
 - Complete API documentation (OpenAPI/Swagger)

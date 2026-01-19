@@ -15,7 +15,7 @@ class Version
      *
      * @var string
      */
-    public const VERSION = '1.2.0';
+    public const VERSION = '1.2.1';
 
     /**
      * Application name

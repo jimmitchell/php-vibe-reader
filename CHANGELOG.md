@@ -5,6 +5,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2024
+
+### Added
+- **Security Audit Report**: Comprehensive security audit documentation
+  - `SECURITY_AUDIT.md` with detailed security analysis
+  - Review of all security measures and remaining recommendations
+  - OWASP Top 10 coverage assessment
+
+### Changed
+- **Documentation**: Updated changelog to reflect all version changes
+- **Version Management**: Updated version tracking across all files
+
+### Improved
+- **Security Documentation**: Complete security audit report for transparency
+- **Version Consistency**: All version references updated to match git tags
+
+## [1.2.0] - 2024
+
+### Added
+- **Background Job System**: Database-backed job queue for asynchronous processing
+  - `JobQueue` class for managing job lifecycle (pending, processing, completed, failed)
+  - `Worker` class for processing jobs (feed fetching, cleanup operations)
+  - Worker CLI script (`worker.php`) supporting daemon mode and batch processing
+  - Job statistics API endpoint (`GET /api/jobs/stats`)
+  - Cleanup job queueing endpoint (`POST /api/jobs/cleanup`)
+  - Automatic retry logic with configurable max attempts
+  - Job cleanup functionality to remove old completed/failed jobs
+- **Feed Cleanup Service**: Automated cleanup of old feed items
+  - Configurable retention policies (days and item count)
+  - Per-feed or global cleanup operations
+  - Automatic cache invalidation after cleanup
+- **Static Analysis**: PHPStan integration for code quality
+  - Level 5 static analysis configuration
+  - Automated bug detection and type checking
+  - Composer script: `composer analyse`
+- **Code Style Enforcement**: PHP-CS-Fixer integration
+  - PSR-12 code style standard
+  - Automated code formatting
+  - Composer scripts: `composer cs-check`, `composer cs-fix`
+  - All 27 source files formatted to PSR-12 standards
+- **API Documentation**: Complete API reference
+  - OpenAPI 3.0 specification (`openapi.yaml`)
+  - Comprehensive API documentation (`API_DOCUMENTATION.md`)
+  - All endpoints documented with request/response schemas
+  - Code examples (JavaScript, cURL)
+  - Integration instructions for Swagger UI, ReDoc, Postman
+- **Environment Configuration Documentation**: Complete reference guide
+  - `ENV_CONFIGURATION.md` with all environment variables
+  - Configuration for jobs, feed retention, caching, and more
+- **Background Jobs Documentation**: Setup and usage guide
+  - `BACKGROUND_JOBS.md` with cron setup, daemon mode, monitoring
+- **Code Quality Documentation**: Tool usage guide
+  - `CODE_QUALITY.md` with PHPStan and PHP-CS-Fixer instructions
+
+### Changed
+- **Response Migration**: Completed 100% migration to standardized `Response` class
+  - Fixed `Csrf.php` to use `Response::error()` instead of `echo json_encode()`
+  - All API responses now use consistent format
+- **Feed Fetching**: Now supports asynchronous processing via job queue
+  - `FeedController::fetch()` checks `jobs.enabled` config
+  - Falls back to synchronous fetching if jobs disabled
+  - Returns job ID when using background processing
+- **Code Quality**: All source files formatted to PSR-12 standards
+  - Consistent spacing, indentation, and formatting
+  - Ordered imports, trailing commas, proper docblocks
+- **Docker Configuration**: Added volume mounts for code quality tools
+  - `phpstan.neon`, `.php-cs-fixer.php` mounted in container
+  - `composer.json`, `composer.lock` mounted for dependency management
+  - `worker.php` script mounted for background job processing
+
+### Improved
+- **Code Maintainability**: Static analysis catches bugs before runtime
+- **Code Consistency**: Automated formatting ensures uniform style
+- **Developer Experience**: Complete API documentation for integration
+- **Performance**: Background jobs prevent blocking on feed fetching
+- **Database Management**: Automated cleanup prevents database bloat
+- **Error Handling**: PHPStan identifies potential issues early
+
+### Technical Details
+- Job queue supports both SQLite and PostgreSQL
+- Worker can run as daemon or process single jobs
+- Cron integration documented for scheduled job processing
+- Cache invalidation integrated with job system
+- PHPStan configured at level 5 with 0 errors
+- PHP-CS-Fixer enforces PSR-12 with additional rules
+- All changes maintain backward compatibility
+
+### Security
+- Background job system respects user ownership (feeds belong to users)
+- Job payloads validated before processing
+- Worker script includes proper error handling and logging
+- All job-related endpoints require authentication and CSRF tokens
+
 ## [1.1.1] - 2024
 
 ### Added
