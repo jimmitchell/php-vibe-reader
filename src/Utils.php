@@ -18,13 +18,13 @@ class Utils
             // Parse the date string - assume it's stored as UTC
             // First try to parse as-is, then explicitly set timezone to UTC
             $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $dateString, new \DateTimeZone('UTC'));
-            
+
             // If that format doesn't work, try generic parsing
             if ($dt === false) {
                 $dt = new \DateTime($dateString);
                 $dt->setTimezone(new \DateTimeZone('UTC'));
             }
-            
+
             // Format as ISO 8601 with 'Z' suffix (UTC indicator)
             return $dt->format('Y-m-d\TH:i:s\Z');
         } catch (\Exception $e) {
@@ -43,6 +43,7 @@ class Utils
                 $data[$field] = self::formatDateForJson($data[$field]);
             }
         }
+
         return $data;
     }
 }

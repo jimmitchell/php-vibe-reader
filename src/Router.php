@@ -2,11 +2,9 @@
 
 namespace PhpRss;
 
-use PhpRss\View;
-
 /**
  * Simple HTTP router for handling application routes.
- * 
+ *
  * Handles routing of HTTP requests to appropriate controller methods.
  * Supports parameterized routes (e.g., /feeds/:id), static asset serving,
  * and both GET and POST request methods.
@@ -15,11 +13,11 @@ class Router
 {
     /**
      * Dispatch the current HTTP request to the appropriate route handler.
-     * 
+     *
      * Parses the request URI, handles static asset serving, matches routes
      * (exact and parameterized), and invokes the corresponding controller method.
      * Returns 404 if no matching route is found.
-     * 
+     *
      * @return void
      */
     public function dispatch(): void
@@ -44,6 +42,7 @@ class Router
                     header('Content-Type: image/x-icon');
                 }
                 readfile($filePath);
+
                 return;
             }
         }
@@ -65,6 +64,7 @@ class Router
                 $mimeType = $mimeTypes[$ext] ?? 'application/octet-stream';
                 header('Content-Type: ' . $mimeType);
                 readfile($filePath);
+
                 return;
             }
         }
@@ -109,13 +109,16 @@ class Router
             'GET /opml/export' => 'FeedController@exportOpml',
             'POST /opml/import' => 'FeedController@importOpml',
             'GET /api/version' => 'ApiController@getVersion',
+            'GET /api/jobs/stats' => 'ApiController@getJobStats',
+            'POST /api/jobs/cleanup' => 'ApiController@queueCleanup',
         ];
 
         $routeKey = "$method $path";
-        
+
         // Try exact match first
         if (isset($routes[$routeKey])) {
             $this->handleRoute($routes[$routeKey]);
+
             return;
         }
 
@@ -123,6 +126,7 @@ class Router
         foreach ($routes as $pattern => $handler) {
             if ($this->matchRoute($pattern, $path, $method)) {
                 $this->handleRoute($handler, $this->extractParams($pattern, $path));
+
                 return;
             }
         }
@@ -133,10 +137,10 @@ class Router
 
     /**
      * Check if a route pattern matches the given path and method.
-     * 
+     *
      * Converts route patterns with parameters (e.g., /feeds/:id) to regex
      * and tests if they match the provided path. Also checks HTTP method.
-     * 
+     *
      * @param string $pattern The route pattern (e.g., "GET /feeds/:id")
      * @param string $path The request path to match
      * @param string $method The HTTP method to match
@@ -158,15 +162,16 @@ class Router
 
         // Convert route pattern to regex
         $regex = '#^' . preg_replace('#/:([^/]+)#', '/([^/]+)', $patternPath) . '$#';
+
         return preg_match($regex, $path);
     }
 
     /**
      * Extract route parameters from a path that matches a parameterized pattern.
-     * 
+     *
      * Extracts named parameters (e.g., :id) from route patterns and returns
      * them as an associative array with parameter names as keys.
-     * 
+     *
      * @param string $pattern The route pattern with parameters (e.g., "/feeds/:id")
      * @param string $path The actual path containing parameter values
      * @return array Associative array of parameter names to values
@@ -174,10 +179,15 @@ class Router
     private function extractParams(string $pattern, string $path): array
     {
         $parts = explode(' ', $pattern, 2);
+        if (count($parts) < 2) {
+            return [];
+        }
         $patternPath = $parts[1];
-        
+
         // Extract parameter names
         preg_match_all('#/:([^/]+)#', $patternPath, $paramNames);
+        // preg_match_all always returns array with numeric keys, so [1] always exists
+        // @phpstan-ignore-next-line - preg_match_all always populates [1] when pattern matches
         $paramNames = $paramNames[1] ?? [];
 
         // Extract parameter values
@@ -195,11 +205,11 @@ class Router
 
     /**
      * Handle a matched route by instantiating the controller and calling the method.
-     * 
+     *
      * Parses the handler string (format: "Controller@method"), instantiates
      * the controller class, and invokes the method with the provided parameters.
      * Returns 500 error if controller or method is not found.
-     * 
+     *
      * @param string $handler The route handler string (e.g., "FeedController@add")
      * @param array $params Route parameters to pass to the controller method
      * @return void
@@ -208,15 +218,17 @@ class Router
     {
         [$controller, $method] = explode('@', $handler);
         $controllerClass = "PhpRss\\Controllers\\$controller";
-        
-        if (!class_exists($controllerClass)) {
+
+        if (! class_exists($controllerClass)) {
             $this->showErrorPage(500);
+
             return;
         }
 
         $controllerInstance = new $controllerClass();
-        if (!method_exists($controllerInstance, $method)) {
+        if (! method_exists($controllerInstance, $method)) {
             $this->showErrorPage(500);
+
             return;
         }
 
@@ -225,25 +237,25 @@ class Router
 
     /**
      * Show an error page based on the HTTP status code.
-     * 
+     *
      * Renders the appropriate error page template (404, 500, 403) and
      * sets the corresponding HTTP response code.
-     * 
+     *
      * @param int $statusCode The HTTP status code (404, 500, or 403)
      * @return void
      */
     private function showErrorPage(int $statusCode): void
     {
         http_response_code($statusCode);
-        
+
         $templateMap = [
             404 => 'error_404',
             500 => 'error_500',
             403 => 'error_403',
         ];
-        
+
         $template = $templateMap[$statusCode] ?? 'error_500';
-        
+
         View::render($template);
     }
 }

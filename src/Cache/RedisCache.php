@@ -7,7 +7,7 @@ use Redis;
 
 /**
  * Redis cache implementation.
- * 
+ *
  * Uses Redis for high-performance caching. Requires Redis PHP extension.
  */
 class RedisCache implements CacheInterface
@@ -24,36 +24,37 @@ class RedisCache implements CacheInterface
     public function __construct()
     {
         $this->defaultTtl = Config::get('cache.ttl', 300); // 5 minutes default
-        
+
         try {
             $this->redis = new Redis();
             $host = Config::get('cache.redis.host', '127.0.0.1');
             $port = Config::get('cache.redis.port', 6379);
             $password = Config::get('cache.redis.password', null);
-            
-            if (!$this->redis->connect($host, $port)) {
+
+            if (! $this->redis->connect($host, $port)) {
                 throw new \Exception("Failed to connect to Redis");
             }
-            
+
             if ($password !== null) {
                 $this->redis->auth($password);
             }
-            
+
             // Select database (default 0)
             $database = Config::get('cache.redis.database', 0);
             $this->redis->select($database);
         } catch (\Exception $e) {
             // Fallback to file cache if Redis fails
             \PhpRss\Logger::warning("Redis cache initialization failed, falling back to file cache", [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             throw $e;
         }
     }
 
     /**
      * Get a value from the cache.
-     * 
+     *
      * @param string $key Cache key
      * @param mixed $default Default value if key doesn't exist
      * @return mixed Cached value or default
@@ -65,7 +66,7 @@ class RedisCache implements CacheInterface
         }
 
         $value = $this->redis->get($key);
-        
+
         if ($value === false) {
             return $default;
         }
@@ -75,7 +76,7 @@ class RedisCache implements CacheInterface
 
     /**
      * Store a value in the cache.
-     * 
+     *
      * @param string $key Cache key
      * @param mixed $value Value to cache
      * @param int|null $ttl Time to live in seconds (null = use default)
@@ -89,13 +90,13 @@ class RedisCache implements CacheInterface
 
         $ttl = $ttl ?? $this->defaultTtl;
         $serialized = json_encode($value);
-        
+
         return $this->redis->setex($key, $ttl, $serialized);
     }
 
     /**
      * Delete a value from the cache.
-     * 
+     *
      * @param string $key Cache key
      * @return bool True if key was deleted
      */
@@ -110,7 +111,7 @@ class RedisCache implements CacheInterface
 
     /**
      * Check if a key exists in the cache.
-     * 
+     *
      * @param string $key Cache key
      * @return bool True if key exists
      */
@@ -125,7 +126,7 @@ class RedisCache implements CacheInterface
 
     /**
      * Clear all cache entries with a given prefix.
-     * 
+     *
      * @param string $prefix Key prefix
      * @return int Number of keys cleared
      */

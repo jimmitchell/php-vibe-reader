@@ -2,14 +2,14 @@
 
 namespace PhpRss;
 
-use Monolog\Logger as MonologLogger;
-use Monolog\Handler\StreamHandler;
-use Monolog\Handler\RotatingFileHandler;
 use Monolog\Formatter\LineFormatter;
+use Monolog\Handler\RotatingFileHandler;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger as MonologLogger;
 
 /**
  * Application logger using Monolog (PSR-3 compliant).
- * 
+ *
  * Provides structured logging with different log levels and automatic
  * log file rotation. This replaces basic error_log() calls throughout
  * the application.
@@ -21,9 +21,9 @@ class Logger
 
     /**
      * Get the logger instance.
-     * 
+     *
      * Creates and configures a Monolog logger if it doesn't exist.
-     * 
+     *
      * @return MonologLogger The logger instance
      */
     public static function getLogger(): MonologLogger
@@ -31,12 +31,13 @@ class Logger
         if (self::$logger === null) {
             self::initialize();
         }
+
         return self::$logger;
     }
 
     /**
      * Initialize the logger with handlers and formatters.
-     * 
+     *
      * @return void
      */
     private static function initialize(): void
@@ -51,13 +52,13 @@ class Logger
 
         // Ensure log directory exists
         $logDir = dirname($logPath);
-        if (!is_dir($logDir)) {
+        if (! is_dir($logDir)) {
             mkdir($logDir, 0755, true);
         }
 
         // Create rotating file handler (keeps N days of logs)
         $fileHandler = new RotatingFileHandler($logPath, $maxFiles, $level);
-        
+
         // Set format: [YYYY-MM-DD HH:MM:SS] CHANNEL.LEVEL: MESSAGE CONTEXT
         $formatter = new LineFormatter(
             "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n",
@@ -66,7 +67,7 @@ class Logger
             true
         );
         $fileHandler->setFormatter($formatter);
-        
+
         self::$logger->pushHandler($fileHandler);
 
         // In development, also log to stderr for immediate visibility
@@ -79,7 +80,7 @@ class Logger
 
     /**
      * Convert string log level to Monolog constant.
-     * 
+     *
      * @param string $level Log level string (debug, info, warning, error, critical)
      * @return int Monolog log level constant
      */
@@ -100,7 +101,7 @@ class Logger
 
     /**
      * Log a debug message.
-     * 
+     *
      * @param string $message Log message
      * @param array $context Additional context data
      * @return void
@@ -112,7 +113,7 @@ class Logger
 
     /**
      * Log an info message.
-     * 
+     *
      * @param string $message Log message
      * @param array $context Additional context data
      * @return void
@@ -124,7 +125,7 @@ class Logger
 
     /**
      * Log a warning message.
-     * 
+     *
      * @param string $message Log message
      * @param array $context Additional context data
      * @return void
@@ -136,7 +137,7 @@ class Logger
 
     /**
      * Log an error message.
-     * 
+     *
      * @param string $message Log message
      * @param array $context Additional context data
      * @return void
@@ -148,7 +149,7 @@ class Logger
 
     /**
      * Log an exception.
-     * 
+     *
      * @param \Throwable $exception The exception to log
      * @param array $context Additional context data
      * @return void
@@ -165,7 +166,7 @@ class Logger
             ),
             array_merge($context, [
                 'exception' => $exception,
-                'trace' => $exception->getTraceAsString()
+                'trace' => $exception->getTraceAsString(),
             ])
         );
     }

@@ -4,7 +4,7 @@ namespace PhpRss;
 
 /**
  * Configuration management class.
- * 
+ *
  * Provides centralized configuration management with environment variable support,
  * validation, and default values. This is the single source of truth for all
  * application configuration.
@@ -16,7 +16,7 @@ class Config
 
     /**
      * Get a configuration value.
-     * 
+     *
      * @param string $key Configuration key (supports dot notation, e.g., 'database.host')
      * @param mixed $default Default value if key is not found
      * @return mixed Configuration value or default
@@ -24,23 +24,23 @@ class Config
     public static function get(string $key, $default = null)
     {
         $config = self::load();
-        
+
         $keys = explode('.', $key);
         $value = $config;
-        
+
         foreach ($keys as $k) {
-            if (!isset($value[$k])) {
+            if (! isset($value[$k])) {
                 return $default;
             }
             $value = $value[$k];
         }
-        
+
         return $value;
     }
 
     /**
      * Load configuration from environment variables and defaults.
-     * 
+     *
      * @return array Configuration array
      */
     private static function load(): array
@@ -85,6 +85,8 @@ class Config
                 'fetch_connect_timeout' => (int)(getenv('FEED_FETCH_CONNECT_TIMEOUT') ?: '10'),
                 'max_redirects' => (int)(getenv('FEED_MAX_REDIRECTS') ?: '10'),
                 'user_agent' => getenv('FEED_USER_AGENT') ?: Version::getVersionString(),
+                'retention_days' => (int)(getenv('FEED_RETENTION_DAYS') ?: '90'), // Keep items for 90 days
+                'retention_count' => getenv('FEED_RETENTION_COUNT') ? (int)getenv('FEED_RETENTION_COUNT') : null, // Keep max N items per feed (null = unlimited)
             ],
 
             'upload' => [
@@ -122,6 +124,12 @@ class Config
                     'database' => (int)(getenv('REDIS_DATABASE') ?: '0'),
                 ],
             ],
+            'jobs' => [
+                'enabled' => filter_var(getenv('JOBS_ENABLED') !== false ? getenv('JOBS_ENABLED') : '0', FILTER_VALIDATE_BOOLEAN) !== false,
+                'worker_sleep' => (int)(getenv('JOBS_WORKER_SLEEP') ?: '5'), // seconds
+                'max_attempts' => (int)(getenv('JOBS_MAX_ATTEMPTS') ?: '3'),
+                'cleanup_days' => (int)(getenv('JOBS_CLEANUP_DAYS') ?: '7'),
+            ],
         ];
 
         return self::$config;
@@ -129,7 +137,7 @@ class Config
 
     /**
      * Check if application is in production environment.
-     * 
+     *
      * @return bool True if production, false otherwise
      */
     public static function isProduction(): bool
@@ -139,7 +147,7 @@ class Config
 
     /**
      * Check if application is in development environment.
-     * 
+     *
      * @return bool True if development, false otherwise
      */
     public static function isDevelopment(): bool
@@ -149,7 +157,7 @@ class Config
 
     /**
      * Check if debug mode is enabled.
-     * 
+     *
      * @return bool True if debug enabled, false otherwise
      */
     public static function isDebug(): bool
@@ -159,7 +167,7 @@ class Config
 
     /**
      * Reset cached configuration (useful for testing).
-     * 
+     *
      * @return void
      */
     public static function reset(): void

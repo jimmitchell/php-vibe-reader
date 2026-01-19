@@ -2,7 +2,7 @@
 
 This project uses semantic versioning (MAJOR.MINOR.PATCH).
 
-## Current Version: 1.0.0
+## Current Version: 1.2.0
 
 ## How to Update the Version
 
@@ -29,7 +29,15 @@ Follow [Semantic Versioning](https://semver.org/):
 
 ## Version History
 
-### 1.0.0 (Current)
+### 1.2.0 (Current)
+- Background job system with database-backed queue
+- Static analysis (PHPStan) and code style enforcement (PHP-CS-Fixer)
+- Complete API documentation (OpenAPI/Swagger)
+- Response migration completed (100% standardized)
+- Feed cleanup service with configurable retention policies
+- Enhanced code quality and maintainability
+
+### 1.0.0
 - Initial release
 - Core RSS/Atom/JSON feed reading functionality
 - User authentication and feed management

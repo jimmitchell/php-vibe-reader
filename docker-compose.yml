@@ -28,7 +28,12 @@ services:
       - ./views:/var/www/html/views
       - ./assets:/var/www/html/assets
       - ./index.php:/var/www/html/index.php
+      - ./worker.php:/var/www/html/worker.php
       - ./scripts:/var/www/html/scripts
+      - ./phpstan.neon:/var/www/html/phpstan.neon
+      - ./.php-cs-fixer.php:/var/www/html/.php-cs-fixer.php
+      - ./composer.json:/var/www/html/composer.json
+      - ./composer.lock:/var/www/html/composer.lock
     environment:
       - PHP_CLI_SERVER_WORKERS=4
       - DB_TYPE=pgsql
@@ -37,6 +42,11 @@ services:
       - DB_NAME=vibereader
       - DB_USER=vibereader
       - DB_PASSWORD=vibereader
+      - JOBS_ENABLED=1
+      - JOBS_WORKER_SLEEP=5
+      - JOBS_MAX_ATTEMPTS=3
+      - JOBS_CLEANUP_DAYS=7
+      - FEED_RETENTION_DAYS=90
     depends_on:
       postgres:
         condition: service_healthy

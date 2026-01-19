@@ -4,7 +4,7 @@ namespace PhpRss\Cache;
 
 /**
  * Null cache implementation (no-op).
- * 
+ *
  * Used when caching is disabled. All operations are no-ops that return
  * default values or false.
  */
@@ -12,7 +12,7 @@ class NullCache implements CacheInterface
 {
     /**
      * Get a value from the cache (always returns default).
-     * 
+     *
      * @param string $key Cache key
      * @param mixed $default Default value
      * @return mixed Always returns default
@@ -24,7 +24,7 @@ class NullCache implements CacheInterface
 
     /**
      * Store a value in the cache (no-op).
-     * 
+     *
      * @param string $key Cache key
      * @param mixed $value Value to cache
      * @param int|null $ttl Time to live
@@ -37,7 +37,7 @@ class NullCache implements CacheInterface
 
     /**
      * Delete a value from the cache (no-op).
-     * 
+     *
      * @param string $key Cache key
      * @return bool Always returns false (no-op)
      */
@@ -48,7 +48,7 @@ class NullCache implements CacheInterface
 
     /**
      * Check if a key exists in the cache (always false).
-     * 
+     *
      * @param string $key Cache key
      * @return bool Always returns false
      */
@@ -59,7 +59,7 @@ class NullCache implements CacheInterface
 
     /**
      * Clear all cache entries with a given prefix (no-op).
-     * 
+     *
      * @param string $prefix Key prefix
      * @return int Always returns 0
      */

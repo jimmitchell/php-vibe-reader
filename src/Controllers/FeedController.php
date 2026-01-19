@@ -2,20 +2,21 @@
 
 namespace PhpRss\Controllers;
 
+use PDO;
 use PhpRss\Auth;
-use PhpRss\Database;
-use PhpRss\FeedParser;
-use PhpRss\FeedFetcher;
-use PhpRss\FeedDiscovery;
+use PhpRss\Config;
 use PhpRss\Csrf;
+use PhpRss\Database;
+use PhpRss\FeedDiscovery;
+use PhpRss\FeedFetcher;
+use PhpRss\FeedParser;
+use PhpRss\Logger;
 use PhpRss\Response;
 use PhpRss\Services\FeedService;
-use PhpRss\Logger;
-use PDO;
 
 /**
  * Controller for handling feed-related operations.
- * 
+ *
  * Manages feed CRUD operations, feed item retrieval, folder management,
  * OPML import/export, user preferences, and feed updates. Provides both
  * JSON API responses and handles feed fetching, parsing, and storage.
@@ -24,32 +25,34 @@ class FeedController
 {
     /**
      * Add a new feed to the user's feed list.
-     * 
+     *
      * Accepts either a direct feed URL or a website URL. If a website URL
      * is provided, attempts feed discovery. Validates the feed, checks for
      * duplicates, and creates/updates the feed record. Fetches initial feed
      * items after adding.
-     * 
+     *
      * POST parameter: 'url' - the feed URL or website URL
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and optional 'error' message
      */
     public function add(): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token for state-changing operations
         Csrf::requireValid();
-        
+
         $url = trim($_POST['url'] ?? '');
         if (empty($url)) {
             Response::error('URL is required', 400);
+
             return;
         }
 
         // Validate URL
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
             Response::error('Invalid URL', 400);
+
             return;
         }
 
@@ -63,7 +66,7 @@ class FeedController
             $parsed = null;
             $feedType = null;
             $isFeed = false;
-            
+
             // First, try the URL as-is (it might already be a feed)
             try {
                 $content = FeedFetcher::fetch($url);
@@ -77,16 +80,16 @@ class FeedController
                 // Not a direct feed, will try discovery below
                 $isFeed = false;
             }
-            
+
             // If not a feed, try discovery
-            if (!$isFeed) {
+            if (! $isFeed) {
                 try {
                     $discoveredFeeds = FeedDiscovery::discover($url);
-                    
+
                     if (empty($discoveredFeeds)) {
                         throw new \Exception("No feed found at this URL. The page doesn't contain feed links and common feed paths don't work. Please try providing a direct feed URL.");
                     }
-                    
+
                     // Use the first discovered feed
                     $feedUrl = $discoveredFeeds[0]['url'];
                     $content = FeedFetcher::fetch($feedUrl);
@@ -102,7 +105,7 @@ class FeedController
             $stmt = $db->prepare("SELECT id FROM feeds WHERE user_id = ? AND url = ?");
             $stmt->execute([$user['id'], $feedUrl]);
             $existingFeed = $stmt->fetch();
-            
+
             if ($existingFeed) {
                 // Feed already exists, update it and use existing ID
                 $feedId = $existingFeed['id'];
@@ -115,7 +118,7 @@ class FeedController
                     $parsed['title'],
                     $feedType,
                     $parsed['description'],
-                    $feedId
+                    $feedId,
                 ]);
             } else {
                 // Insert new feed (sort_order = next for this user)
@@ -129,7 +132,7 @@ class FeedController
                     $feedUrl, // Use discovered feed URL if found
                     $feedType,
                     $parsed['description'],
-                    $user['id']
+                    $user['id'],
                 ]);
 
                 $feedId = $db->lastInsertId();
@@ -137,10 +140,10 @@ class FeedController
 
             // Insert feed items
             $dbType = Database::getDbType();
-            $insertSql = $dbType === 'pgsql' 
+            $insertSql = $dbType === 'pgsql'
                 ? "INSERT INTO feed_items (feed_id, title, link, content, summary, author, published_at, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (feed_id, guid) DO NOTHING"
                 : "INSERT OR IGNORE INTO feed_items (feed_id, title, link, content, summary, author, published_at, guid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            
+
             foreach ($parsed['items'] as $item) {
                 $stmt = $db->prepare($insertSql);
                 $stmt->execute([
@@ -151,23 +154,24 @@ class FeedController
                     $item['summary'],
                     $item['author'],
                     $item['published_at'],
-                    $item['guid']
+                    $item['guid'],
                 ]);
             }
 
             // Check if we got any items
             if (empty($parsed['items'])) {
                 Response::error('Feed was parsed but contains no items. The feed might be empty or the format is not fully supported.', 400);
+
                 return;
             }
-            
+
             // Invalidate cache for user's feeds
             FeedService::invalidateUserCache($user['id']);
 
             Response::success([
                 'feed_id' => $feedId,
                 'feed_url' => $feedUrl,
-                'item_count' => count($parsed['items'])
+                'item_count' => count($parsed['items']),
             ]);
         } catch (\Exception $e) {
             // Provide more helpful error messages
@@ -186,24 +190,24 @@ class FeedController
 
     /**
      * Get list of all feeds for the current user with counts.
-     * 
+     *
      * Returns JSON array of feeds with folder associations, item counts, and
      * unread counts. Dates are formatted for JSON (ISO 8601 UTC).
-     * 
+     *
      * @return void Outputs JSON array of feed data
      */
     public function list(): void
     {
         Auth::requireAuth();
-        
+
         $user = Auth::user();
         $hideFeedsWithNoUnread = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
-        
+
         // Use FeedService to get feeds (eliminates code duplication)
         $feeds = FeedService::getFeedsForUser($user['id'], $hideFeedsWithNoUnread);
 
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
-        $feeds = array_map(function($feed) {
+        $feeds = array_map(function ($feed) {
             return \PhpRss\Utils::formatDatesForJson($feed);
         }, $feeds);
 
@@ -212,20 +216,21 @@ class FeedController
 
     /**
      * Get feed items for a specific feed.
-     * 
+     *
      * Returns feed items with read status. Respects user's hide_read_items
      * preference. Items are ordered by published date (newest first).
-     * 
+     *
      * @param array $params Route parameters including 'id' (feed ID)
      * @return void Outputs JSON array of feed items
      */
     public function getItems(array $params): void
     {
         Auth::requireAuth();
-        
+
         $feedId = $params['id'] ?? null;
-        if (!$feedId) {
+        if (! $feedId) {
             Response::error('Feed ID required', 400);
+
             return;
         }
 
@@ -233,18 +238,19 @@ class FeedController
         $db = Database::getConnection();
 
         // Verify feed belongs to user using FeedService
-        if (!FeedService::verifyFeedOwnership($feedId, $user['id'])) {
+        if (! FeedService::verifyFeedOwnership($feedId, $user['id'])) {
             Response::error('Feed not found', 404);
+
             return;
         }
 
         // Check if user wants to hide read items
         $hideReadItems = $_SESSION['hide_read_items'] ?? ($user['hide_read_items'] ?? true);
-        
+
         // Get sort order preference (newest or oldest)
         $sortOrder = $_SESSION['item_sort_order'] ?? ($user['item_sort_order'] ?? 'newest');
         $sortDirection = ($sortOrder === 'oldest') ? 'ASC' : 'DESC';
-        
+
         $sql = "
             SELECT fi.*, 
                    CASE WHEN ri.id IS NOT NULL THEN 1 ELSE 0 END as is_read
@@ -252,20 +258,20 @@ class FeedController
             LEFT JOIN read_items ri ON ri.feed_item_id = fi.id AND ri.user_id = ?
             WHERE fi.feed_id = ?
         ";
-        
+
         if ($hideReadItems) {
             $sql .= " AND ri.id IS NULL";
         }
-        
+
         // Order by published date based on user preference (newest first by default)
         $sql .= " ORDER BY fi.published_at {$sortDirection}, fi.created_at {$sortDirection}";
-        
+
         $stmt = $db->prepare($sql);
         $stmt->execute([$user['id'], $feedId]);
         $items = $stmt->fetchAll();
 
         // Format dates for JSON (convert to ISO 8601 with UTC timezone)
-        $items = array_map(function($item) {
+        $items = array_map(function ($item) {
             return \PhpRss\Utils::formatDatesForJson($item);
         }, $items);
 
@@ -274,20 +280,21 @@ class FeedController
 
     /**
      * Get a single feed item by ID.
-     * 
+     *
      * Returns the full feed item data including feed title. Verifies that
      * the item belongs to the current user's feeds.
-     * 
+     *
      * @param array $params Route parameters including 'id' (item ID)
      * @return void Outputs JSON object with feed item data
      */
     public function getItem(array $params): void
     {
         Auth::requireAuth();
-        
+
         $itemId = $params['id'] ?? null;
-        if (!$itemId) {
+        if (! $itemId) {
             Response::error('Item ID required', 400);
+
             return;
         }
 
@@ -304,8 +311,9 @@ class FeedController
         $stmt->execute([$itemId, $user['id']]);
         $item = $stmt->fetch();
 
-        if (!$item) {
+        if (! $item) {
             Response::error('Item not found', 404);
+
             return;
         }
 
@@ -317,23 +325,24 @@ class FeedController
 
     /**
      * Mark a feed item as read for the current user.
-     * 
+     *
      * Creates a read_items record. Uses database-specific conflict handling
      * (ON CONFLICT DO NOTHING for PostgreSQL, INSERT OR IGNORE for SQLite).
-     * 
+     *
      * @param array $params Route parameters including 'id' (item ID)
      * @return void Outputs JSON with 'success' boolean
      */
     public function markAsRead(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
-        
+
         $itemId = $params['id'] ?? null;
-        if (!$itemId) {
+        if (! $itemId) {
             Response::error('Item ID required', 400);
+
             return;
         }
 
@@ -348,8 +357,9 @@ class FeedController
             WHERE fi.id = ? AND f.user_id = ?
         ");
         $stmt->execute([$itemId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Item not found', 404);
+
             return;
         }
 
@@ -378,22 +388,23 @@ class FeedController
 
     /**
      * Mark a feed item as unread (remove from read_items).
-     * 
+     *
      * Deletes the read_items record for this user and item.
-     * 
+     *
      * @param array $params Route parameters including 'id' (item ID)
      * @return void Outputs JSON with 'success' boolean
      */
     public function markAsUnread(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
-        
+
         $itemId = $params['id'] ?? null;
-        if (!$itemId) {
+        if (! $itemId) {
             Response::error('Item ID required', 400);
+
             return;
         }
 
@@ -409,8 +420,9 @@ class FeedController
         ");
         $stmt->execute([$itemId, $user['id']]);
         $itemData = $stmt->fetch();
-        if (!$itemData) {
+        if (! $itemData) {
             Response::error('Item not found', 404);
+
             return;
         }
         $feedId = $itemData['feed_id'];
@@ -428,23 +440,24 @@ class FeedController
 
     /**
      * Mark all items in a feed as read.
-     * 
+     *
      * Bulk inserts read_items records for all items in the specified feed.
      * Uses database-specific conflict handling.
-     * 
+     *
      * @param array $params Route parameters including 'id' (feed ID)
      * @return void Outputs JSON with 'success' boolean and 'count' of marked items
      */
     public function markAllAsRead(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
-        
+
         $feedId = $params['id'] ?? null;
-        if (!$feedId) {
+        if (! $feedId) {
             Response::error('Feed ID required', 400);
+
             return;
         }
 
@@ -454,8 +467,9 @@ class FeedController
         // Verify feed belongs to user
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Feed not found', 404);
+
             return;
         }
 
@@ -476,23 +490,24 @@ class FeedController
 
     /**
      * Fetch/update a feed by fetching latest content from the feed URL.
-     * 
+     *
      * Delegates to FeedFetcher::updateFeed() to fetch and parse the feed,
      * then update feed metadata and insert new items.
-     * 
+     *
      * @param array $params Route parameters including 'id' (feed ID)
      * @return void Outputs JSON with 'success' boolean
      */
     public function fetch(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
-        
+
         $feedId = $params['id'] ?? null;
-        if (!$feedId) {
+        if (! $feedId) {
             Response::error('Feed ID required', 400);
+
             return;
         }
 
@@ -502,40 +517,56 @@ class FeedController
         // Verify feed belongs to user
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Feed not found', 404);
+
             return;
         }
 
-        if (FeedFetcher::updateFeed($feedId)) {
-            // Invalidate cache when feed is updated
-            FeedService::invalidateFeedCache($feedId);
-            FeedService::invalidateUserCache($user['id']);
-            Response::success();
+        // Check if background jobs are enabled
+        $useBackgroundJobs = Config::get('jobs.enabled', false);
+
+        if ($useBackgroundJobs) {
+            // Queue the job for background processing
+            $jobId = \PhpRss\Queue\JobQueue::push(
+                \PhpRss\Queue\JobQueue::TYPE_FETCH_FEED,
+                ['feed_id' => $feedId]
+            );
+
+            Response::success(['job_id' => $jobId, 'message' => 'Feed update queued']);
         } else {
-            Response::error('Failed to fetch feed', 500);
+            // Process synchronously (original behavior)
+            if (FeedFetcher::updateFeed($feedId)) {
+                // Invalidate cache when feed is updated
+                FeedService::invalidateFeedCache($feedId);
+                FeedService::invalidateUserCache($user['id']);
+                Response::success();
+            } else {
+                Response::error('Failed to fetch feed', 500);
+            }
         }
     }
 
     /**
      * Delete a feed from the user's feed list.
-     * 
+     *
      * Deletes the feed record. Database cascade will handle deletion of
      * associated feed_items and read_items.
-     * 
+     *
      * @param array $params Route parameters including 'id' (feed ID)
      * @return void Outputs JSON with 'success' boolean
      */
     public function delete(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
-        
+
         $feedId = $params['id'] ?? null;
-        if (!$feedId) {
+        if (! $feedId) {
             Response::error('Feed ID required', 400);
+
             return;
         }
 
@@ -545,8 +576,9 @@ class FeedController
         // Verify feed belongs to user
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Feed not found', 404);
+
             return;
         }
 
@@ -563,27 +595,27 @@ class FeedController
 
     /**
      * Toggle the hide_read_items user preference.
-     * 
+     *
      * Toggles the user's preference for hiding read items and updates
      * both the database and session.
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and 'hide_read_items' value
      */
     public function toggleHideRead(): void
     {
         Auth::requireAuth();
-        
+
         $user = Auth::user();
         $db = Database::getConnection();
 
         // Toggle the preference
         $currentValue = $_SESSION['hide_read_items'] ?? ($user['hide_read_items'] ?? true);
-        $newValue = !$currentValue;
-        
+        $newValue = ! $currentValue;
+
         // Update database
         $stmt = $db->prepare("UPDATE users SET hide_read_items = ? WHERE id = ?");
         $stmt->execute([$newValue ? 1 : 0, $user['id']]);
-        
+
         // Update session
         $_SESSION['hide_read_items'] = $newValue;
 
@@ -592,16 +624,16 @@ class FeedController
 
     /**
      * Toggle the item_sort_order user preference between 'newest' and 'oldest'.
-     * 
+     *
      * Toggles the user's preference for sorting feed items by date (newest first
      * or oldest first) and updates both the database and session.
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and 'item_sort_order' value
      */
     public function toggleItemSortOrder(): void
     {
         Auth::requireAuth();
-        
+
         $user = Auth::user();
         $db = Database::getConnection();
 
@@ -609,11 +641,11 @@ class FeedController
         $currentOrder = $_SESSION['item_sort_order'] ?? ($user['item_sort_order'] ?? 'newest');
         // Toggle between 'newest' and 'oldest'
         $newOrder = ($currentOrder === 'newest') ? 'oldest' : 'newest';
-        
+
         // Update database
         $stmt = $db->prepare("UPDATE users SET item_sort_order = ? WHERE id = ?");
         $stmt->execute([$newOrder, $user['id']]);
-        
+
         // Update session
         $_SESSION['item_sort_order'] = $newOrder;
 
@@ -622,27 +654,27 @@ class FeedController
 
     /**
      * Toggle the hide_feeds_with_no_unread user preference.
-     * 
+     *
      * Toggles the user's preference for hiding feeds with no unread items
      * and updates both the database and session.
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and 'hide_feeds_with_no_unread' value
      */
     public function toggleHideFeedsWithNoUnread(): void
     {
         Auth::requireAuth();
-        
+
         $user = Auth::user();
         $db = Database::getConnection();
 
         // Toggle the preference
         $currentValue = $_SESSION['hide_feeds_with_no_unread'] ?? ($user['hide_feeds_with_no_unread'] ?? false);
-        $newValue = !$currentValue;
-        
+        $newValue = ! $currentValue;
+
         // Update database
         $stmt = $db->prepare("UPDATE users SET hide_feeds_with_no_unread = ? WHERE id = ?");
         $stmt->execute([$newValue ? 1 : 0, $user['id']]);
-        
+
         // Update session
         $_SESSION['hide_feeds_with_no_unread'] = $newValue;
 
@@ -651,10 +683,10 @@ class FeedController
 
     /**
      * Toggle the dark_mode user preference.
-     * 
+     *
      * Toggles the user's theme preference between light and dark mode,
      * updating both the database and session.
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and 'dark_mode' value
      */
     public function toggleTheme(): void
@@ -665,7 +697,7 @@ class FeedController
         $db = Database::getConnection();
 
         $currentValue = (bool)($_SESSION['dark_mode'] ?? $user['dark_mode'] ?? 0);
-        $newValue = !$currentValue;
+        $newValue = ! $currentValue;
 
         $stmt = $db->prepare("UPDATE users SET dark_mode = ? WHERE id = ?");
         $stmt->execute([$newValue ? 1 : 0, $user['id']]);
@@ -677,12 +709,12 @@ class FeedController
 
     /**
      * Update the sort order of feeds.
-     * 
+     *
      * Accepts a JSON array of feed IDs in the desired order and updates
      * the sort_order field for each feed.
-     * 
+     *
      * JSON body: { "order": [feed_id1, feed_id2, ...] }
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean
      */
     public function reorderFeeds(): void
@@ -694,8 +726,9 @@ class FeedController
 
         $input = json_decode(file_get_contents('php://input'), true) ?: [];
         $order = $input['order'] ?? [];
-        if (!is_array($order) || empty($order)) {
+        if (! is_array($order) || empty($order)) {
             Response::error('Order array required', 400);
+
             return;
         }
 
@@ -712,10 +745,10 @@ class FeedController
 
     /**
      * Get current user preferences.
-     * 
+     *
      * Returns timezone, default_theme_mode, and font_family from session
      * or database (session takes precedence).
-     * 
+     *
      * @return void Outputs JSON with user preferences
      */
     public function getPreferences(): void
@@ -726,24 +759,24 @@ class FeedController
         Response::success([
             'timezone' => $_SESSION['timezone'] ?? $user['timezone'] ?? 'UTC',
             'default_theme_mode' => $_SESSION['default_theme_mode'] ?? $user['default_theme_mode'] ?? 'system',
-            'font_family' => $_SESSION['font_family'] ?? $user['font_family'] ?? 'system'
+            'font_family' => $_SESSION['font_family'] ?? $user['font_family'] ?? 'system',
         ]);
     }
 
     /**
      * Update user preferences (timezone, theme mode, font family).
-     * 
+     *
      * Validates input values and updates database and session. Only
      * updates fields that are provided in the request.
-     * 
+     *
      * JSON body: { "timezone": "...", "default_theme_mode": "...", "font_family": "..." }
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean
      */
     public function updatePreferences(): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
 
@@ -766,13 +799,15 @@ class FeedController
                 $params[] = $timezone;
             } catch (\Exception $e) {
                 Response::error('Invalid timezone', 400);
+
                 return;
             }
         }
 
         if ($defaultThemeMode !== null) {
-            if (!in_array($defaultThemeMode, ['light', 'dark', 'system'])) {
+            if (! in_array($defaultThemeMode, ['light', 'dark', 'system'])) {
                 Response::error('Invalid theme mode', 400);
+
                 return;
             }
             $updates[] = "default_theme_mode = ?";
@@ -781,8 +816,9 @@ class FeedController
 
         if ($fontFamily !== null) {
             $validFonts = ['system', 'Lato', 'Roboto', 'Noto Sans', 'Nunito', 'Mulish'];
-            if (!in_array($fontFamily, $validFonts)) {
+            if (! in_array($fontFamily, $validFonts)) {
                 Response::error('Invalid font family', 400);
+
                 return;
             }
             $updates[] = "font_family = ?";
@@ -791,6 +827,7 @@ class FeedController
 
         if (empty($updates)) {
             Response::error('No valid preferences to update', 400);
+
             return;
         }
 
@@ -814,9 +851,9 @@ class FeedController
 
     /**
      * Get all folders for the current user.
-     * 
+     *
      * Returns folders ordered by sort_order and name.
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and 'folders' array
      */
     public function getFolders(): void
@@ -839,18 +876,18 @@ class FeedController
 
     /**
      * Create a new folder for organizing feeds.
-     * 
+     *
      * Validates that the folder name is unique for this user and creates
      * the folder with appropriate sort_order.
-     * 
+     *
      * JSON body: { "name": "Folder Name" }
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean and 'folder' data or error
      */
     public function createFolder(): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
 
@@ -859,6 +896,7 @@ class FeedController
 
         if (empty($name)) {
             Response::error('Folder name is required', 400);
+
             return;
         }
 
@@ -870,6 +908,7 @@ class FeedController
         $stmt->execute([$user['id'], $name]);
         if ($stmt->fetch()) {
             Response::error('Folder with this name already exists', 400);
+
             return;
         }
 
@@ -887,9 +926,9 @@ class FeedController
 
     /**
      * Update a folder's name.
-     * 
+     *
      * Validates the folder belongs to the user and that the new name is unique.
-     * 
+     *
      * @param array $params Route parameters including 'id' (folder ID)
      * JSON body: { "name": "New Folder Name" }
      * @return void Outputs JSON with 'success' boolean
@@ -897,13 +936,14 @@ class FeedController
     public function updateFolder(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
 
         $folderId = $params['id'] ?? null;
-        if (!$folderId) {
+        if (! $folderId) {
             Response::error('Folder ID required', 400);
+
             return;
         }
 
@@ -912,6 +952,7 @@ class FeedController
 
         if (empty($name)) {
             Response::error('Folder name is required', 400);
+
             return;
         }
 
@@ -921,8 +962,9 @@ class FeedController
         // Verify folder belongs to user
         $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Folder not found', 404);
+
             return;
         }
 
@@ -931,6 +973,7 @@ class FeedController
         $stmt->execute([$user['id'], $name, $folderId]);
         if ($stmt->fetch()) {
             Response::error('Folder with this name already exists', 400);
+
             return;
         }
 
@@ -942,23 +985,24 @@ class FeedController
 
     /**
      * Delete a folder.
-     * 
+     *
      * Deletes the folder. Feeds in the folder will have folder_id set to NULL
      * (handled by foreign key ON DELETE SET NULL).
-     * 
+     *
      * @param array $params Route parameters including 'id' (folder ID)
      * @return void Outputs JSON with 'success' boolean
      */
     public function deleteFolder(array $params): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
 
         $folderId = $params['id'] ?? null;
-        if (!$folderId) {
+        if (! $folderId) {
             Response::error('Folder ID required', 400);
+
             return;
         }
 
@@ -968,8 +1012,9 @@ class FeedController
         // Verify folder belongs to user
         $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Folder not found', 404);
+
             return;
         }
 
@@ -982,19 +1027,19 @@ class FeedController
 
     /**
      * Assign a feed to a folder or remove it from a folder.
-     * 
+     *
      * Updates the feed's folder_id. If folder_id is null, removes the feed
      * from its current folder. Validates that both feed and folder belong
      * to the current user.
-     * 
+     *
      * JSON body: { "feed_id": 123, "folder_id": 456 } or { "feed_id": 123, "folder_id": null }
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean
      */
     public function updateFeedFolder(): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
 
@@ -1002,8 +1047,9 @@ class FeedController
         $feedId = $input['feed_id'] ?? null;
         $folderId = $input['folder_id'] ?? null; // null means remove from folder
 
-        if (!$feedId) {
+        if (! $feedId) {
             Response::error('Feed ID required', 400);
+
             return;
         }
 
@@ -1013,8 +1059,9 @@ class FeedController
         // Verify feed belongs to user
         $stmt = $db->prepare("SELECT id FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
-        if (!$stmt->fetch()) {
+        if (! $stmt->fetch()) {
             Response::error('Feed not found', 404);
+
             return;
         }
 
@@ -1022,8 +1069,9 @@ class FeedController
         if ($folderId !== null) {
             $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
             $stmt->execute([$folderId, $user['id']]);
-            if (!$stmt->fetch()) {
+            if (! $stmt->fetch()) {
                 Response::error('Folder not found', 404);
+
                 return;
             }
         }
@@ -1036,16 +1084,16 @@ class FeedController
 
     /**
      * Export user's feeds as OPML format.
-     * 
+     *
      * Generates OPML XML file containing all user feeds, organized by folders.
      * Sets appropriate headers for file download.
-     * 
+     *
      * @return void Outputs OPML XML and sets headers for download
      */
     public function exportOpml(): void
     {
         Auth::requireAuth();
-        
+
         $user = Auth::user();
         $db = Database::getConnection();
 
@@ -1066,7 +1114,7 @@ class FeedController
         $feedsWithoutFolder = [];
         foreach ($feeds as $feed) {
             if ($feed['folder_name']) {
-                if (!isset($foldersMap[$feed['folder_name']])) {
+                if (! isset($foldersMap[$feed['folder_name']])) {
                     $foldersMap[$feed['folder_name']] = [];
                 }
                 $foldersMap[$feed['folder_name']][] = $feed;
@@ -1118,31 +1166,32 @@ class FeedController
 
     /**
      * Import feeds from an OPML file.
-     * 
+     *
      * Parses uploaded OPML XML file, extracts feed URLs and folder structure,
      * and adds feeds to the user's feed list. Handles nested folder structures
      * and creates folders as needed. Uses output buffering to ensure only
      * JSON is returned (no PHP errors/warnings in response).
-     * 
+     *
      * POST file upload: 'opml_file' - the OPML XML file
-     * 
+     *
      * @return void Outputs JSON with 'success' boolean, 'added' count, and 'errors' array
      */
     public function importOpml(): void
     {
         Auth::requireAuth();
-        
+
         // Validate CSRF token
         Csrf::requireValid();
-        
+
         // Catch any PHP errors/warnings
         ob_start();
-        
+
         try {
             // Validate file upload
-            if (!isset($_FILES['opml_file'])) {
+            if (! isset($_FILES['opml_file'])) {
                 ob_end_clean();
                 Response::error('No file uploaded', 400);
+
                 return;
             }
 
@@ -1150,6 +1199,7 @@ class FeedController
             if ($_FILES['opml_file']['size'] > 5 * 1024 * 1024) {
                 ob_end_clean();
                 Response::error('File too large. Maximum size is 5MB', 400);
+
                 return;
             }
 
@@ -1157,14 +1207,15 @@ class FeedController
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mimeType = finfo_file($finfo, $_FILES['opml_file']['tmp_name']);
             finfo_close($finfo);
-            
+
             $allowedMimes = ['application/xml', 'text/xml', 'application/octet-stream'];
-            if (!in_array($mimeType, $allowedMimes)) {
+            if (! in_array($mimeType, $allowedMimes)) {
                 // Check file extension as fallback
                 $ext = strtolower(pathinfo($_FILES['opml_file']['name'], PATHINFO_EXTENSION));
                 if ($ext !== 'opml' && $ext !== 'xml') {
                     ob_end_clean();
                     Response::error('Invalid file type. Only OPML/XML files are allowed', 400);
+
                     return;
                 }
             }
@@ -1176,52 +1227,61 @@ class FeedController
                         case UPLOAD_ERR_INI_SIZE:
                         case UPLOAD_ERR_FORM_SIZE:
                             $errorMsg = 'File too large';
+
                             break;
                         case UPLOAD_ERR_PARTIAL:
                             $errorMsg = 'File partially uploaded';
+
                             break;
                         case UPLOAD_ERR_NO_FILE:
                             $errorMsg = 'No file uploaded';
+
                             break;
                         case UPLOAD_ERR_NO_TMP_DIR:
                             $errorMsg = 'Missing temporary folder';
+
                             break;
                         case UPLOAD_ERR_CANT_WRITE:
                             $errorMsg = 'Failed to write file to disk';
+
                             break;
                         case UPLOAD_ERR_EXTENSION:
                             $errorMsg = 'File upload stopped by extension';
+
                             break;
                     }
                 }
                 ob_end_clean();
                 Response::error($errorMsg, 400);
+
                 return;
             }
 
             $file = $_FILES['opml_file']['tmp_name'];
             $content = file_get_contents($file);
-            
+
             if ($content === false) {
                 ob_end_clean();
                 Response::error('Could not read uploaded file', 500);
+
                 return;
             }
 
             // Parse OPML XML
             libxml_use_internal_errors(true);
             $xml = simplexml_load_string($content);
-            
+
             if ($xml === false) {
                 $libxmlErrors = libxml_get_errors();
                 libxml_clear_errors();
                 ob_end_clean();
                 $errorMsg = 'Invalid OPML file';
-                if (!empty($libxmlErrors)) {
+                if (! empty($libxmlErrors)) {
                     $errorMsg .= ': ' . $libxmlErrors[0]->message;
                 }
                 ob_end_clean();
                 Response::error($errorMsg, 400);
+
                 return;
             }
 
@@ -1232,101 +1292,102 @@ class FeedController
             $errors = [];
 
             // Function to recursively process outlines
-            $processOutlines = function($outlines, $folderId = null) use (&$processOutlines, $db, $user, &$addedCount, &$skippedCount, &$errors) {
-            if (!$outlines) {
-                return;
-            }
-            
-            foreach ($outlines as $outline) {
-                $attributes = $outline->attributes();
-                
-                // Check if this outline has an xmlUrl (it's a feed)
-                $xmlUrl = isset($attributes['xmlUrl']) ? (string)$attributes['xmlUrl'] : null;
-                
-                if ($xmlUrl) {
-                    // This is a feed
-                    $feedUrl = $xmlUrl;
-                    $feedTitle = isset($attributes['text']) ? (string)$attributes['text'] : (isset($attributes['title']) ? (string)$attributes['title'] : 'Untitled Feed');
-                    
-                    if (empty($feedTitle)) {
-                        $feedTitle = 'Untitled Feed';
-                    }
+            $processOutlines = function ($outlines, $folderId = null) use (&$processOutlines, $db, $user, &$addedCount, &$skippedCount, &$errors) {
+                if (! $outlines) {
+                    return;
+                }
 
-                    // Check if feed already exists
-                    $stmt = $db->prepare("SELECT id FROM feeds WHERE user_id = ? AND url = ?");
-                    $stmt->execute([$user['id'], $feedUrl]);
-                    if ($stmt->fetch()) {
-                        $skippedCount++;
-                        continue;
-                    }
+                foreach ($outlines as $outline) {
+                    $attributes = $outline->attributes();
 
-                    // Try to discover and add the feed
-                    try {
-                        // Use the feed URL directly - FeedDiscovery is mainly for website URLs
-                        // Since OPML already contains feed URLs (xmlUrl), we can use them directly
-                        $content = FeedFetcher::fetch($feedUrl);
-                        $parsed = FeedParser::parse($feedUrl, $content);
-                        
-                        // Insert feed
-                        $stmt = $db->prepare("
+                    // Check if this outline has an xmlUrl (it's a feed)
+                    $xmlUrl = isset($attributes['xmlUrl']) ? (string)$attributes['xmlUrl'] : null;
+
+                    if ($xmlUrl) {
+                        // This is a feed
+                        $feedUrl = $xmlUrl;
+                        $feedTitle = isset($attributes['text']) ? (string)$attributes['text'] : (isset($attributes['title']) ? (string)$attributes['title'] : 'Untitled Feed');
+
+                        if (empty($feedTitle)) {
+                            $feedTitle = 'Untitled Feed';
+                        }
+
+                        // Check if feed already exists
+                        $stmt = $db->prepare("SELECT id FROM feeds WHERE user_id = ? AND url = ?");
+                        $stmt->execute([$user['id'], $feedUrl]);
+                        if ($stmt->fetch()) {
+                            $skippedCount++;
+
+                            continue;
+                        }
+
+                        // Try to discover and add the feed
+                        try {
+                            // Use the feed URL directly - FeedDiscovery is mainly for website URLs
+                            // Since OPML already contains feed URLs (xmlUrl), we can use them directly
+                            $content = FeedFetcher::fetch($feedUrl);
+                            $parsed = FeedParser::parse($feedUrl, $content);
+
+                            // Insert feed
+                            $stmt = $db->prepare("
                             INSERT INTO feeds (user_id, folder_id, title, url, feed_type, description, sort_order) 
                             VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM feeds WHERE user_id = ?))
                         ");
-                        $stmt->execute([
-                            $user['id'],
-                            $folderId,
-                            $parsed['title'] ?: $feedTitle,
-                            $feedUrl,
-                            FeedParser::detectFeedType($content),
-                            $parsed['description'] ?? null,
-                            $user['id']
-                        ]);
-                        
-                        $addedCount++;
-                    } catch (\Exception $e) {
-                        $errors[] = "Failed to add feed '$feedTitle': " . $e->getMessage();
-                        $skippedCount++;
-                    }
-                } else {
-                    // This might be a folder (category) - check if it has text/title but no xmlUrl
-                    $folderName = null;
-                    if (isset($attributes['text'])) {
-                        $folderName = (string)$attributes['text'];
-                    } elseif (isset($attributes['title'])) {
-                        $folderName = (string)$attributes['title'];
-                    }
-                    
-                    // Check if this outline has children (nested outlines)
-                    $hasChildren = isset($outline->outline) && count($outline->outline) > 0;
-                    
-                    $currentFolderId = $folderId;
-                    
-                    // If it has a name and children, treat it as a folder
-                    if ($folderName && $hasChildren) {
-                        // Check if folder exists, create if not
-                        $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ?");
-                        $stmt->execute([$user['id'], $folderName]);
-                        $folder = $stmt->fetch(PDO::FETCH_ASSOC);
-                        
-                        if ($folder) {
-                            $currentFolderId = $folder['id'];
-                        } else {
-                            // Create folder
-                            $stmt = $db->prepare("
+                            $stmt->execute([
+                                $user['id'],
+                                $folderId,
+                                $parsed['title'] ?: $feedTitle,
+                                $feedUrl,
+                                FeedParser::detectFeedType($content),
+                                $parsed['description'] ?? null,
+                                $user['id'],
+                            ]);
+
+                            $addedCount++;
+                        } catch (\Exception $e) {
+                            $errors[] = "Failed to add feed '$feedTitle': " . $e->getMessage();
+                            $skippedCount++;
+                        }
+                    } else {
+                        // This might be a folder (category) - check if it has text/title but no xmlUrl
+                        $folderName = null;
+                        if (isset($attributes['text'])) {
+                            $folderName = (string)$attributes['text'];
+                        } elseif (isset($attributes['title'])) {
+                            $folderName = (string)$attributes['title'];
+                        }
+
+                        // Check if this outline has children (nested outlines)
+                        $hasChildren = isset($outline->outline) && count($outline->outline) > 0;
+
+                        $currentFolderId = $folderId;
+
+                        // If it has a name and children, treat it as a folder
+                        if ($folderName && $hasChildren) {
+                            // Check if folder exists, create if not
+                            $stmt = $db->prepare("SELECT id FROM folders WHERE user_id = ? AND name = ?");
+                            $stmt->execute([$user['id'], $folderName]);
+                            $folder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                            if ($folder) {
+                                $currentFolderId = $folder['id'];
+                            } else {
+                                // Create folder
+                                $stmt = $db->prepare("
                                 INSERT INTO folders (user_id, name, sort_order) 
                                 VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM folders WHERE user_id = ?))
                             ");
-                            $stmt->execute([$user['id'], $folderName, $user['id']]);
-                            $currentFolderId = $db->lastInsertId();
+                                $stmt->execute([$user['id'], $folderName, $user['id']]);
+                                $currentFolderId = $db->lastInsertId();
+                            }
+                        }
+
+                        // Process children if they exist
+                        if ($hasChildren) {
+                            $processOutlines($outline->outline, $currentFolderId);
                         }
                     }
-                    
-                    // Process children if they exist
-                    if ($hasChildren) {
-                        $processOutlines($outline->outline, $currentFolderId);
-                    }
                 }
-            }
             };
 
             // Process top-level outlines
@@ -1342,7 +1403,7 @@ class FeedController
             Response::success([
                 'added' => $addedCount,
                 'skipped' => $skippedCount,
-                'errors' => $errors
+                'errors' => $errors,
             ]);
         } catch (\Exception $e) {
             $output = ob_get_clean();

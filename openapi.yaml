@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: VibeReader API
+  description: |
+    RESTful API for VibeReader - A PHP-based RSS reading platform.
+    
+    All endpoints require authentication via session cookies. State-changing operations
+    (POST, PUT, DELETE) require a valid CSRF token in the request.
+  version: 1.1.1
+  contact:
+    name: VibeReader
+    url: https://github.com/php-vibe-reader/reader
+
+servers:
+  - url: http://localhost:9999
+    description: Local development server
+  - url: https://your-domain.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Feeds
+    description: Feed management operations
+  - name: Items
+    description: Feed item operations
+  - name: Folders
+    description: Folder organization
+  - name: Preferences
+    description: User preferences
+  - name: Search
+    description: Search functionality
+  - name: Jobs
+    description: Background job management
+  - name: System
+    description: System information
+
+paths:
+  /api/feeds:
+    get:
+      tags:
+        - Feeds
+      summary: Get all feeds for the current user
+      description: Returns a list of all feeds for the authenticated user with item counts and folder information
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of feeds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Feed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/feeds/{feedId}/items:
+    get:
+      tags:
+        - Feeds
+      summary: Get items for a specific feed
+      description: Returns all items (or unread items only, based on user preference) for a feed
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: feedId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The feed ID
+      responses:
+        '200':
+          description: List of feed items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeedItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/items/{itemId}:
+    get:
+      tags:
+        - Items
+      summary: Get a single feed item
+      description: Returns detailed information about a specific feed item
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The item ID
+      responses:
+        '200':
+          description: Feed item details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedItemDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/items/{itemId}/read:
+    post:
+      tags:
+        - Items
+      summary: Mark an item as read
+      description: Marks a feed item as read for the current user
+      security:
+        - sessionAuth: []
+        - csrfToken: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The item ID
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/search:
+    get:
+      tags:
+        - Search
+      summary: Search feed items
+      description: Searches across all user's feed items (title, content, summary, author). Returns up to 100 results.
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SearchResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/version:
+    get:
+      tags:
+        - System
+      summary: Get application version
+      description: Returns the application name and version information
+      responses:
+        '200':
+          description: Version information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+
+  /api/jobs/stats:
+    get:
+      tags:
+        - Jobs
+      summary: Get job queue statistics
+      description: Returns statistics about jobs in the background job queue
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Job statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/jobs/cleanup:
+    post:
+      tags:
+        - Jobs
+      summary: Queue a cleanup job
+      description: Queues a background job to clean up old feed items based on retention settings
+      security:
+        - sessionAuth: []
+        - csrfToken: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                feed_id:
+                  type: integer
+                  description: Specific feed ID to clean (optional, null for all feeds)
+                retention_days:
+                  type: integer
+                  description: Days to keep items (optional, uses config default if not provided)
+                retention_count:
+                  type: integer
+                  description: Maximum items to keep per feed (optional)
+      responses:
+        '200':
+          description: Job queued successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          job_id:
+                            type: integer
+                          message:
+                            type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: PHPSESSID
+      description: Session-based authentication via cookie
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: CSRF token for state-changing operations (can also be in POST body as _token)
+
+  schemas:
+    Feed:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Feed ID
+        user_id:
+          type: integer
+        folder_id:
+          type: integer
+          nullable: true
+        folder_name:
+          type: string
+          nullable: true
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        feed_type:
+          type: string
+          enum: [rss, atom, json]
+        description:
+          type: string
+          nullable: true
+        item_count:
+          type: integer
+          description: Total number of items in the feed
+        unread_count:
+          type: integer
+          description: Number of unread items
+        last_fetched:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 UTC timestamp
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 UTC timestamp
+
+    FeedItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        feed_id:
+          type: integer
+        title:
+          type: string
+        link:
+          type: string
+          format: uri
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        author:
+          type: string
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 UTC timestamp
+        is_read:
+          type: integer
+          enum: [0, 1]
+          description: 0 = unread, 1 = read
+
+    FeedItemDetail:
+      allOf:
+        - $ref: '#/components/schemas/FeedItem'
+        - type: object
+          properties:
+            feed_title:
+              type: string
+              description: Title of the feed this item belongs to
+
+    SearchResult:
+      allOf:
+        - $ref: '#/components/schemas/FeedItem'
+        - type: object
+          properties:
+            feed_title:
+              type: string
+              description: Title of the feed this item belongs to
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          nullable: true
+        data:
+          type: object
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    Version:
+      type: object
+      properties:
+        app_name:
+          type: string
+          example: VibeReader
+        version:
+          type: string
+          example: 1.1.1
+        version_string:
+          type: string
+          example: VibeReader/1.1.1
+
+    JobStats:
+      type: object
+      properties:
+        pending:
+          type: integer
+          description: Number of pending jobs
+        processing:
+          type: integer
+          description: Number of jobs currently being processed
+        completed:
+          type: integer
+          description: Number of completed jobs
+        failed:
+          type: integer
+          description: Number of failed jobs
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Authentication required
+
+    Forbidden:
+      description: CSRF token validation failed or insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Invalid CSRF token
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Resource not found
+
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Invalid request

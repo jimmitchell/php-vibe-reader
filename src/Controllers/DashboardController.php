@@ -3,29 +3,28 @@
 namespace PhpRss\Controllers;
 
 use PhpRss\Auth;
-use PhpRss\View;
 use PhpRss\Database;
-use PDO;
+use PhpRss\View;
 
 /**
  * Controller for the main dashboard page.
- * 
+ *
  * Handles rendering the dashboard view with user feeds and folder information.
  */
 class DashboardController
 {
     /**
      * Display the main dashboard page.
-     * 
+     *
      * Requires authentication. Loads all feeds for the current user, including
      * folder associations, and renders the dashboard template.
-     * 
+     *
      * @return void
      */
     public function index(): void
     {
         Auth::requireAuth();
-        
+
         $user = Auth::user();
         $db = Database::getConnection();
 
@@ -42,7 +41,7 @@ class DashboardController
 
         View::render('dashboard', [
             'user' => $user,
-            'feeds' => $feeds
+            'feeds' => $feeds,
         ]);
     }
 }

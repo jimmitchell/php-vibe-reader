@@ -10,3 +10,5 @@ coverage/
 logs/
 *.log
 data/cache/
+.php-cs-fixer.cache
+.phpstan/

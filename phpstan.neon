@@ -1,0 +1,13 @@
+parameters:
+    level: 5
+    paths:
+        - src
+    excludePaths:
+        - src/Cache/RedisCache.php  # May not have Redis extension in all environments
+    bootstrapFiles:
+        - vendor/autoload.php
+    ignoreErrors:
+        # Monolog classes are available but PHPStan can't always detect them
+        - '#Monolog#'
+        - '#unknown class Monolog#'
+    reportUnmatchedIgnoredErrors: false

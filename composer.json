@@ -14,7 +14,9 @@
         "monolog/monolog": "^3.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.0"
+        "phpunit/phpunit": "^10.0",
+        "phpstan/phpstan": "^1.10",
+        "friendsofphp/php-cs-fixer": "^3.48"
     },
     "autoload": {
         "psr-4": {
@@ -29,6 +31,10 @@
     "scripts": {
         "setup": "php scripts/setup.php",
         "test": "phpunit",
-        "test-coverage": "phpunit --coverage-html coverage"
+        "test-coverage": "phpunit --coverage-html coverage",
+        "analyse": "phpstan analyse",
+        "analyse-baseline": "phpstan analyse --generate-baseline",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix"
     }
 }

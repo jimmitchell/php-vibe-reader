@@ -180,11 +180,58 @@ The application uses PostgreSQL (when running in Docker) or SQLite (for manual i
 - **feeds**: Subscribed feeds with folder assignments and sort order
 - **feed_items**: Individual feed articles
 - **read_items**: Tracks which items have been read by each user
+- **jobs**: Background job queue for asynchronous processing
+
+## Background Jobs
+
+VibeReader includes a background job system for processing feed updates and cleanup operations asynchronously. This improves performance by not blocking user requests during feed fetching.
+
+### Quick Setup
+
+1. Enable jobs in `.env`:
+   ```bash
+   JOBS_ENABLED=1
+   ```
+
+2. Set up a cron job to run the worker:
+   ```bash
+   */5 * * * * cd /path/to/vibereader && php worker.php
+   ```
+
+3. See [BACKGROUND_JOBS.md](BACKGROUND_JOBS.md) for complete documentation.
+
+### Features
+
+- **Asynchronous feed fetching**: Update feeds in the background
+- **Automatic item cleanup**: Remove old items based on retention policies
+- **Job retry system**: Failed jobs are automatically retried
+- **Queue monitoring**: API endpoints for job statistics
+
+## Configuration
+
+See [ENV_CONFIGURATION.md](ENV_CONFIGURATION.md) for a complete reference of all environment variables.
+
+## API Documentation
+
+Complete API documentation is available:
+
+- **[API_DOCUMENTATION.md](API_DOCUMENTATION.md)** - Human-readable API reference with examples
+- **[openapi.yaml](openapi.yaml)** - OpenAPI 3.0 specification for tooling integration
+
+You can use the OpenAPI spec with tools like Swagger UI, ReDoc, or Postman for interactive API exploration.
+
+## Code Quality
+
+The project uses static analysis and code style tools:
+
+- **PHPStan** - Static analysis (level 5)
+- **PHP-CS-Fixer** - Code style enforcement (PSR-12)
+
+See [CODE_QUALITY.md](CODE_QUALITY.md) for usage instructions.
 
 ## Future Enhancements
 
 - Support for MySQL database (currently uses PostgreSQL in Docker)
-- Feed refresh scheduling
 - Keyboard shortcuts
 - Mobile-responsive design improvements
 

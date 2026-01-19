@@ -3,23 +3,23 @@
 namespace PhpRss\Controllers;
 
 use PhpRss\Auth;
-use PhpRss\View;
-use PhpRss\Csrf;
 use PhpRss\Config;
+use PhpRss\Csrf;
 use PhpRss\Middleware\RateLimiter;
+use PhpRss\View;
 
 /**
  * Controller for handling authentication-related actions.
- * 
+ *
  * Manages user login, registration, logout, and the corresponding view pages.
  */
 class AuthController
 {
     /**
      * Display the login page.
-     * 
+     *
      * Redirects to dashboard if user is already authenticated.
-     * 
+     *
      * @return void
      */
     public function loginPage(): void
@@ -33,10 +33,10 @@ class AuthController
 
     /**
      * Handle user login form submission.
-     * 
+     *
      * Validates username and password, attempts authentication, and redirects
      * to dashboard on success or displays error on failure.
-     * 
+     *
      * @return void
      */
     public function login(): void
@@ -46,15 +46,17 @@ class AuthController
         $rateLimitKey = 'login:' . $ip;
         $maxAttempts = Config::get('rate_limiting.login_max_attempts', 5);
         $window = Config::get('rate_limiting.login_window', 900);
-        
-        if (!RateLimiter::check($rateLimitKey, $maxAttempts, $window)) {
+
+        if (! RateLimiter::check($rateLimitKey, $maxAttempts, $window)) {
             View::render('login', ['error' => 'Too many login attempts. Please try again later.']);
+
             return;
         }
 
         // Validate CSRF token
-        if (!Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
+        if (! Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
             View::render('login', ['error' => 'Invalid security token. Please try again.']);
+
             return;
         }
 
@@ -63,6 +65,7 @@ class AuthController
 
         if (empty($username) || empty($password)) {
             View::render('login', ['error' => 'Please enter both username and password']);
+
             return;
         }
 
@@ -76,9 +79,9 @@ class AuthController
 
     /**
      * Display the registration page.
-     * 
+     *
      * Redirects to dashboard if user is already authenticated.
-     * 
+     *
      * @return void
      */
     public function registerPage(): void
@@ -92,18 +95,19 @@ class AuthController
 
     /**
      * Handle user registration form submission.
-     * 
+     *
      * Validates form data (username, email, password, confirmation), checks
      * password length, and creates a new user account. Redirects to login
      * page on success or displays error on failure.
-     * 
+     *
      * @return void
      */
     public function register(): void
     {
         // Validate CSRF token
-        if (!Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
+        if (! Csrf::validate($_POST[Csrf::fieldName()] ?? null)) {
             View::render('register', ['error' => 'Invalid security token. Please try again.']);
+
             return;
         }
 
@@ -114,43 +118,51 @@ class AuthController
 
         if (empty($username) || empty($email) || empty($password)) {
             View::render('register', ['error' => 'All fields are required']);
+
             return;
         }
 
         // Validate username
         if (strlen($username) < 3 || strlen($username) > 50) {
             View::render('register', ['error' => 'Username must be between 3 and 50 characters']);
+
             return;
         }
 
-        if (!preg_match('/^[a-zA-Z0-9_-]+$/', $username)) {
+        if (! preg_match('/^[a-zA-Z0-9_-]+$/', $username)) {
             View::render('register', ['error' => 'Username can only contain letters, numbers, underscores, and hyphens']);
+
             return;
         }
 
         // Validate email
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             View::render('register', ['error' => 'Invalid email address']);
+
             return;
         }
 
         if (strlen($email) > 255) {
             View::render('register', ['error' => 'Email address is too long']);
+
             return;
         }
 
         if ($password !== $confirmPassword) {
             View::render('register', ['error' => 'Passwords do not match']);
+
             return;
         }
 
         if (strlen($password) < 8) {
             View::render('register', ['error' => 'Password must be at least 8 characters']);
+
             return;
         }
 
         if (Auth::register($username, $email, $password)) {
             View::render('login', ['success' => 'Registration successful. Please login.']);
+
             return;
         }
 
@@ -159,9 +171,9 @@ class AuthController
 
     /**
      * Handle user logout.
-     * 
+     *
      * Destroys the session and redirects to the login page.
-     * 
+     *
      * @return void
      */
     public function logout(): void

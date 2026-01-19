@@ -4,11 +4,10 @@ namespace PhpRss;
 
 use PDO;
 use PDOException;
-use PhpRss\Config;
 
 /**
  * Database connection and schema management class.
- * 
+ *
  * Handles database connections for both SQLite and PostgreSQL, manages
  * the database schema, and provides migration capabilities for adding
  * new columns and indexes as the application evolves.
@@ -17,22 +16,23 @@ class Database
 {
     /** @var PDO|null Singleton database connection instance */
     private static ?PDO $connection = null;
-    
+
     /** @var string Database type: 'sqlite' or 'pgsql' */
     private static string $dbType;
-    
+
     /** @var string Path to SQLite database file (used when DB_TYPE is 'sqlite') */
     private static string $dbPath = __DIR__ . '/../data/rss_reader.db';
-    
+
     /** @var array Database configuration array (currently unused, reserved for future use) */
+    /** @phpstan-ignore-next-line */
     private static array $dbConfig = [];
 
     /**
      * Initialize the database connection if it hasn't been established yet.
-     * 
+     *
      * This method ensures the connection is lazy-loaded - it will only
      * be created when first accessed.
-     * 
+     *
      * @return void
      */
     public static function init(): void
@@ -44,11 +44,11 @@ class Database
 
     /**
      * Establish a database connection based on environment variables.
-     * 
+     *
      * Reads DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD
      * from environment variables. Falls back to SQLite if DB_TYPE is not
      * set or is not 'pgsql'/'postgresql'.
-     * 
+     *
      * @return void
      * @throws PDOException If connection fails
      */
@@ -57,7 +57,7 @@ class Database
         try {
             // Get database configuration from Config class
             self::$dbType = Config::get('database.type', 'sqlite');
-            
+
             if (self::$dbType === 'pgsql' || self::$dbType === 'postgresql') {
                 // PostgreSQL connection
                 $host = Config::get('database.host', 'localhost');
@@ -74,7 +74,7 @@ class Database
             } else {
                 // SQLite connection (fallback)
                 $dataDir = dirname(self::$dbPath);
-                if (!is_dir($dataDir)) {
+                if (! is_dir($dataDir)) {
                     mkdir($dataDir, 0755, true);
                 }
 
@@ -96,10 +96,10 @@ class Database
 
     /**
      * Get the database connection instance.
-     * 
+     *
      * If no connection exists, this will automatically initialize one.
      * Returns a PDO instance configured for exceptions and associative array fetching.
-     * 
+     *
      * @return PDO The database connection instance
      */
     public static function getConnection(): PDO
@@ -107,14 +107,15 @@ class Database
         if (self::$connection === null) {
             self::init();
         }
+
         return self::$connection;
     }
 
     /**
      * Get the database type being used.
-     * 
+     *
      * Returns either 'sqlite' or 'pgsql' based on the current connection.
-     * 
+     *
      * @return string The database type: 'sqlite' or 'pgsql'
      */
     public static function getDbType(): string
@@ -122,16 +123,17 @@ class Database
         if (self::$connection === null) {
             self::init();
         }
+
         return self::$dbType;
     }
 
     /**
      * Check if a column exists in a database table.
-     * 
+     *
      * Uses database-specific queries to check column existence:
      * - PostgreSQL: queries information_schema.columns
      * - SQLite: queries PRAGMA table_info
-     * 
+     *
      * @param PDO $db The database connection
      * @param string $table The table name to check
      * @param string $column The column name to check
@@ -146,6 +148,7 @@ class Database
                 WHERE table_name = :table AND column_name = :column
             ");
             $stmt->execute([':table' => $table, ':column' => $column]);
+
             return $stmt->fetchColumn() !== false;
         } else {
             // SQLite
@@ -157,28 +160,32 @@ class Database
                     return true;
                 }
             }
+
             return false;
         }
     }
 
     /**
      * Set up the database schema and run migrations.
-     * 
+     *
      * Creates all necessary tables (users, folders, feeds, feed_items, read_items)
      * if they don't exist, with syntax appropriate for the current database type.
      * Also creates indexes for performance and handles migrations by checking for
      * and adding columns that may not exist in older database schemas.
-     * 
+     *
      * This method is idempotent - it can be safely called multiple times as it
      * uses CREATE TABLE IF NOT EXISTS and checks for column existence before
      * altering tables.
-     * 
+     *
      * @return void
      */
     public static function setup(): void
     {
         $db = self::getConnection();
-        
+
+        // Initialize job queue table
+        \PhpRss\Queue\JobQueue::initialize();
+
         // SQL syntax differs between SQLite and PostgreSQL
         if (self::$dbType === 'pgsql') {
             // PostgreSQL schema
@@ -317,51 +324,51 @@ class Database
         $db->exec("CREATE INDEX IF NOT EXISTS idx_read_items_feed_item_id ON read_items(feed_item_id)");
 
         // Add columns that might not exist (for migrations)
-        if (!self::columnExists($db, 'users', 'hide_read_items')) {
+        if (! self::columnExists($db, 'users', 'hide_read_items')) {
             $db->exec("ALTER TABLE users ADD COLUMN hide_read_items INTEGER DEFAULT 1");
         }
 
-        if (!self::columnExists($db, 'users', 'dark_mode')) {
+        if (! self::columnExists($db, 'users', 'dark_mode')) {
             $db->exec("ALTER TABLE users ADD COLUMN dark_mode INTEGER DEFAULT 0");
         }
 
-        if (!self::columnExists($db, 'users', 'timezone')) {
+        if (! self::columnExists($db, 'users', 'timezone')) {
             $type = self::$dbType === 'pgsql' ? "VARCHAR(255) DEFAULT 'UTC'" : "TEXT DEFAULT 'UTC'";
             $db->exec("ALTER TABLE users ADD COLUMN timezone {$type}");
         }
 
-        if (!self::columnExists($db, 'users', 'default_theme_mode')) {
+        if (! self::columnExists($db, 'users', 'default_theme_mode')) {
             $type = self::$dbType === 'pgsql' ? "VARCHAR(50) DEFAULT 'system'" : "TEXT DEFAULT 'system'";
             $db->exec("ALTER TABLE users ADD COLUMN default_theme_mode {$type}");
         }
 
-        if (!self::columnExists($db, 'users', 'font_family')) {
+        if (! self::columnExists($db, 'users', 'font_family')) {
             $type = self::$dbType === 'pgsql' ? "VARCHAR(100) DEFAULT 'system'" : "TEXT DEFAULT 'system'";
             $db->exec("ALTER TABLE users ADD COLUMN font_family {$type}");
         }
 
         // Add hide_feeds_with_no_unread column if it doesn't exist
-        if (!self::columnExists($db, 'users', 'hide_feeds_with_no_unread')) {
+        if (! self::columnExists($db, 'users', 'hide_feeds_with_no_unread')) {
             $db->exec("ALTER TABLE users ADD COLUMN hide_feeds_with_no_unread INTEGER DEFAULT 0");
         }
 
         // Add item_sort_order column if it doesn't exist
-        if (!self::columnExists($db, 'users', 'item_sort_order')) {
+        if (! self::columnExists($db, 'users', 'item_sort_order')) {
             $type = self::$dbType === 'pgsql' ? "VARCHAR(20) DEFAULT 'newest'" : "TEXT DEFAULT 'newest'";
             $db->exec("ALTER TABLE users ADD COLUMN item_sort_order {$type}");
         }
 
-        if (!self::columnExists($db, 'feeds', 'sort_order')) {
+        if (! self::columnExists($db, 'feeds', 'sort_order')) {
             $db->exec("ALTER TABLE feeds ADD COLUMN sort_order INTEGER DEFAULT 0");
             // Backfill existing feeds with a stable order (by id)
             $db->exec("UPDATE feeds SET sort_order = id WHERE sort_order = 0");
         }
 
         // Add folder_id column to feeds table if it doesn't exist
-        if (!self::columnExists($db, 'feeds', 'folder_id')) {
+        if (! self::columnExists($db, 'feeds', 'folder_id')) {
             $db->exec("ALTER TABLE feeds ADD COLUMN folder_id INTEGER");
         }
-        
+
         // Create indexes for folders (after tables/columns exist)
         // Check if folders table exists by trying to create index (folder table should exist from CREATE TABLE)
         try {
