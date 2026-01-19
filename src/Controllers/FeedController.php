@@ -161,6 +161,9 @@ class FeedController
                 return;
             }
             
+            // Invalidate cache for user's feeds
+            FeedService::invalidateUserCache($user['id']);
+
             Response::success([
                 'feed_id' => $feedId,
                 'feed_url' => $feedUrl,
@@ -350,6 +353,12 @@ class FeedController
             return;
         }
 
+        // Get feed ID for cache invalidation
+        $stmt = $db->prepare("SELECT feed_id FROM feed_items WHERE id = ?");
+        $stmt->execute([$itemId]);
+        $feedData = $stmt->fetch();
+        $feedId = $feedData['feed_id'] ?? null;
+
         // Mark as read
         $dbType = Database::getDbType();
         $insertSql = $dbType === 'pgsql'
@@ -357,6 +366,12 @@ class FeedController
             : "INSERT OR IGNORE INTO read_items (user_id, feed_item_id) VALUES (?, ?)";
         $stmt = $db->prepare($insertSql);
         $stmt->execute([$user['id'], $itemId]);
+
+        // Invalidate cache
+        if ($feedId) {
+            FeedService::invalidateFeedCache($feedId);
+        }
+        FeedService::invalidateUserCache($user['id']);
 
         Response::success();
     }
@@ -385,22 +400,28 @@ class FeedController
         $user = Auth::user();
         $db = Database::getConnection();
 
-        // Verify item belongs to user's feed
+        // Verify item belongs to user's feed and get feed ID
         $stmt = $db->prepare("
-            SELECT fi.id
+            SELECT fi.id, fi.feed_id
             FROM feed_items fi
             JOIN feeds f ON fi.feed_id = f.id
             WHERE fi.id = ? AND f.user_id = ?
         ");
         $stmt->execute([$itemId, $user['id']]);
-        if (!$stmt->fetch()) {
+        $itemData = $stmt->fetch();
+        if (!$itemData) {
             Response::error('Item not found', 404);
             return;
         }
+        $feedId = $itemData['feed_id'];
 
         // Mark as unread (delete from read_items)
         $stmt = $db->prepare("DELETE FROM read_items WHERE user_id = ? AND feed_item_id = ?");
         $stmt->execute([$user['id'], $itemId]);
+
+        // Invalidate cache
+        FeedService::invalidateFeedCache($feedId);
+        FeedService::invalidateUserCache($user['id']);
 
         Response::success();
     }
@@ -446,6 +467,10 @@ class FeedController
         $stmt = $db->prepare($insertSql);
         $stmt->execute([$user['id'], $feedId]);
 
+        // Invalidate cache
+        FeedService::invalidateFeedCache($feedId);
+        FeedService::invalidateUserCache($user['id']);
+
         Response::success(['count' => $stmt->rowCount()]);
     }
 
@@ -483,6 +508,9 @@ class FeedController
         }
 
         if (FeedFetcher::updateFeed($feedId)) {
+            // Invalidate cache when feed is updated
+            FeedService::invalidateFeedCache($feedId);
+            FeedService::invalidateUserCache($user['id']);
             Response::success();
         } else {
             Response::error('Failed to fetch feed', 500);
@@ -525,6 +553,10 @@ class FeedController
         // Delete feed (cascade will handle feed_items and read_items)
         $stmt = $db->prepare("DELETE FROM feeds WHERE id = ? AND user_id = ?");
         $stmt->execute([$feedId, $user['id']]);
+
+        // Invalidate cache
+        FeedService::invalidateFeedCache($feedId);
+        FeedService::invalidateUserCache($user['id']);
 
         Response::success();
     }

@@ -3,6 +3,8 @@
 namespace PhpRss\Services;
 
 use PhpRss\Database;
+use PhpRss\Cache;
+use PhpRss\Config;
 use PDO;
 
 /**
@@ -17,11 +19,37 @@ class FeedService
     /**
      * Get all feeds for a user with counts and folder information.
      * 
+     * Uses caching to improve performance. Cache is invalidated when feeds
+     * or items are modified.
+     * 
      * @param int $userId The user ID
      * @param bool $hideNoUnread Whether to hide feeds with no unread items
      * @return array Array of feeds with item counts and folder data
      */
     public static function getFeedsForUser(int $userId, bool $hideNoUnread = false): array
+    {
+        // Check if caching is enabled
+        if (!Config::get('cache.enabled', true)) {
+            return self::fetchFeedsFromDatabase($userId, $hideNoUnread);
+        }
+
+        // Build cache key
+        $cacheKey = "user_feeds:{$userId}" . ($hideNoUnread ? ":hide_no_unread" : "");
+
+        // Try to get from cache
+        return Cache::remember($cacheKey, function() use ($userId, $hideNoUnread) {
+            return self::fetchFeedsFromDatabase($userId, $hideNoUnread);
+        }, Config::get('cache.ttl', 300));
+    }
+
+    /**
+     * Fetch feeds from database (uncached).
+     * 
+     * @param int $userId The user ID
+     * @param bool $hideNoUnread Whether to hide feeds with no unread items
+     * @return array Array of feeds with item counts and folder data
+     */
+    private static function fetchFeedsFromDatabase(int $userId, bool $hideNoUnread = false): array
     {
         $db = Database::getConnection();
 
@@ -103,5 +131,31 @@ class FeedService
         $stmt = $db->prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $userId]);
         return $stmt->fetch() !== false;
+    }
+
+    /**
+     * Invalidate cache for a user's feeds.
+     * 
+     * Should be called whenever feeds, items, or read status changes.
+     * 
+     * @param int $userId User ID
+     * @return void
+     */
+    public static function invalidateUserCache(int $userId): void
+    {
+        Cache::invalidateUserFeeds($userId);
+    }
+
+    /**
+     * Invalidate cache for a specific feed.
+     * 
+     * Should be called when feed items are added, removed, or read status changes.
+     * 
+     * @param int $feedId Feed ID
+     * @return void
+     */
+    public static function invalidateFeedCache(int $feedId): void
+    {
+        Cache::invalidateFeed($feedId);
     }
 }

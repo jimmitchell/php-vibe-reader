@@ -68,7 +68,7 @@ async function selectFeed(feedId) {
         updateItemSortButton();
     }
     
-    // Load items for this feed
+    // Load items for this feed (this will apply hideReadItems filter if enabled)
     await loadFeedItems(feedId);
     
     // Clear item content
@@ -255,21 +255,20 @@ async function markAsRead(itemId) {
             method: 'POST'
         }));
         
-        // Update UI
+        // Update UI - remove unread class but keep item visible
         const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
         if (itemElement) {
             itemElement.classList.remove('unread');
         }
         
-            // Reload feeds to update unread counts
-            if (typeof loadFeeds === 'function') {
-                loadFeeds();
-            }
-            
-            // If hide read is enabled, reload items (item will disappear from list)
-            if (window.currentFeedId && window.hideReadItems) {
-                await loadFeedItems(window.currentFeedId);
-            }
+        // Reload feeds to update unread counts
+        if (typeof loadFeeds === 'function') {
+            loadFeeds();
+        }
+        
+        // Note: We don't reload items here - items will remain visible
+        // until the user switches to a different feed, at which point
+        // selectFeed() will reload items with the hideReadItems filter applied
     } catch (error) {
         console.error('Error marking as read:', error);
     }

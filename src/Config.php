@@ -107,6 +107,21 @@ class Config
                 'api_max_requests' => (int)(getenv('RATE_LIMIT_API_REQUESTS') ?: '100'),
                 'api_window' => (int)(getenv('RATE_LIMIT_API_WINDOW') ?: '60'), // 1 minute
             ],
+
+            'cache' => [
+                'enabled' => filter_var(getenv('CACHE_ENABLED') !== false ? getenv('CACHE_ENABLED') : '1', FILTER_VALIDATE_BOOLEAN) !== false,
+                'driver' => getenv('CACHE_DRIVER') ?: 'file', // 'file' or 'redis'
+                'ttl' => (int)(getenv('CACHE_TTL') ?: '300'), // 5 minutes default
+                'file' => [
+                    'path' => getenv('CACHE_PATH') ?: (__DIR__ . '/../data/cache'),
+                ],
+                'redis' => [
+                    'host' => getenv('REDIS_HOST') ?: '127.0.0.1',
+                    'port' => (int)(getenv('REDIS_PORT') ?: '6379'),
+                    'password' => getenv('REDIS_PASSWORD') ?: null,
+                    'database' => (int)(getenv('REDIS_DATABASE') ?: '0'),
+                ],
+            ],
         ];
 
         return self::$config;
