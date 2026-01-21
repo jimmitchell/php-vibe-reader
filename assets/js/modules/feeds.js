@@ -296,7 +296,7 @@ function renderFeedItem(feed) {
         <div class="feed-item ${feed.id === window.currentFeedId ? 'active' : ''} ${feed.unread_count > 0 ? 'unread' : ''}" 
              data-feed-id="${feed.id}" draggable="true">
             <div class="feed-item-content">
-                <div class="feed-item-title">${escapeHtml(feed.title)}</div>
+                <div class="feed-item-title">${escapeHtml(decodeHtmlEntities(feed.title))}</div>
                 <div class="feed-item-meta">
                     ${feed.item_count} items
                     ${feed.unread_count > 0 ? `• ${feed.unread_count} unread` : ''}

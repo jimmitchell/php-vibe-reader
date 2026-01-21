@@ -113,10 +113,10 @@ function renderItems(items) {
         return `
         <div class="item-entry ${item.is_read ? '' : 'unread'} ${item.id === window.currentItemId ? 'active' : ''}" 
              data-item-id="${item.id}">
-            <div class="item-entry-title">${escapeHtml(displayTitle)}</div>
+            <div class="item-entry-title">${escapeHtml(decodeHtmlEntities(displayTitle))}</div>
             <div class="item-entry-meta">
                 ${item.published_at ? formatDate(item.published_at, { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
-                ${item.author ? `• ${escapeHtml(item.author)}` : ''}
+                ${item.author ? `• ${escapeHtml(decodeHtmlEntities(item.author))}` : ''}
             </div>
         </div>
         `;
@@ -176,7 +176,7 @@ async function loadItemContent(itemId) {
         
         // Update content title
         const displayTitle = getReaderTitle(item);
-        document.getElementById('content-title').textContent = displayTitle;
+        document.getElementById('content-title').textContent = decodeHtmlEntities(displayTitle);
     } catch (error) {
         console.error('Error loading item content:', error);
         itemContent.innerHTML = '<div class="empty-state">Error loading content</div>';
@@ -207,7 +207,7 @@ function renderItemContent(item) {
     const contentTitle = document.getElementById('content-title');
     const displayTitle = getReaderTitle(item);
 
-    contentTitle.textContent = displayTitle;
+    contentTitle.textContent = decodeHtmlEntities(displayTitle);
 
     const content = item.content || item.summary || 'No content available';
     const link = item.link ? `<a href="${escapeHtml(item.link)}" target="_blank">Read original</a>` : '';
@@ -223,7 +223,7 @@ function renderItemContent(item) {
     // Build title row with mark unread button on the right
     const titleRow = markUnreadButton ? `
         <div class="item-content-title-row">
-            <h1 class="item-content-title">${escapeHtml(displayTitle)}</h1>
+            <h1 class="item-content-title">${escapeHtml(decodeHtmlEntities(displayTitle))}</h1>
             ${markUnreadButton}
         </div>
     ` : `<h1 class="item-content-title">${escapeHtml(displayTitle)}</h1>`;

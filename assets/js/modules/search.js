@@ -87,11 +87,11 @@ function displaySearchResults(results) {
         return `
         <div class="item-entry ${item.is_read ? '' : 'unread'}" 
              data-item-id="${item.id}">
-            <div class="item-entry-title">${escapeHtml(displayTitle)}</div>
+            <div class="item-entry-title">${escapeHtml(decodeHtmlEntities(displayTitle))}</div>
             <div class="item-entry-meta">
-                <span class="item-feed-name">${escapeHtml(item.feed_title || 'Unknown Feed')}</span>
+                <span class="item-feed-name">${escapeHtml(decodeHtmlEntities(item.feed_title || 'Unknown Feed'))}</span>
                 ${item.published_at ? `• ${formatDate(item.published_at, { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}
-                ${item.author ? `• ${escapeHtml(item.author)}` : ''}
+                ${item.author ? `• ${escapeHtml(decodeHtmlEntities(item.author))}` : ''}
             </div>
         </div>
         `;

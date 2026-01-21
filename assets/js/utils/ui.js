@@ -34,6 +34,23 @@ function stripHtml(html) {
 }
 
 /**
+ * Decode HTML entities in a string.
+ * 
+ * Converts HTML entities like &apos; &amp; &lt; &gt; &quot; back to their characters.
+ * This is needed because server-side sanitization encodes special characters,
+ * and we need to display them properly.
+ * 
+ * @param {string} text - Text containing HTML entities
+ * @returns {string} Text with HTML entities decoded
+ */
+function decodeHtmlEntities(text) {
+    if (!text) return '';
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+}
+
+/**
  * Show a loading overlay with optional message.
  * 
  * @param {string} message - Loading message to display
