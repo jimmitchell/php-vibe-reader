@@ -239,6 +239,7 @@
         var fontFamily = <?= json_encode($user['font_family'] ?? 'system') ?>;
     </script>
     <!-- Utility modules -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.1/dist/purify.min.js"></script>
     <script src="/assets/js/utils/csrf.js"></script>
     <script src="/assets/js/utils/toast.js"></script>
     <script src="/assets/js/utils/dateFormat.js"></script>

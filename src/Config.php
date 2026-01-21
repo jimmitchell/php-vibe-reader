@@ -130,6 +130,9 @@ class Config
                 'max_attempts' => (int)(getenv('JOBS_MAX_ATTEMPTS') ?: '3'),
                 'cleanup_days' => (int)(getenv('JOBS_CLEANUP_DAYS') ?: '7'),
             ],
+            'sanitization' => [
+                'enabled' => filter_var(getenv('SANITIZATION_ENABLED') !== false ? getenv('SANITIZATION_ENABLED') : '1', FILTER_VALIDATE_BOOLEAN) !== false,
+            ],
         ];
 
         return self::$config;

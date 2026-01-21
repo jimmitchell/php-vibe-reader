@@ -11,7 +11,8 @@
         "ext-json": "*",
         "ext-simplexml": "*",
         "ext-libxml": "*",
-        "monolog/monolog": "^3.0"
+        "monolog/monolog": "^3.0",
+        "ezyang/htmlpurifier": "^4.16"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.0",

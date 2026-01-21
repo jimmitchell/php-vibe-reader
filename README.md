@@ -229,6 +229,36 @@ The project uses static analysis and code style tools:
 
 See [CODE_QUALITY.md](CODE_QUALITY.md) for usage instructions.
 
+## Security
+
+VibeReader implements comprehensive security measures:
+
+- **HTML Sanitization** - All feed content is sanitized to prevent XSS attacks
+  - Server-side: HTMLPurifier sanitizes content before storage
+  - Client-side: DOMPurify provides defense-in-depth when rendering
+  - See [HTML_SANITIZATION.md](HTML_SANITIZATION.md) for details
+- **CSRF Protection** - All state-changing operations require CSRF tokens
+- **SSRF Protection** - Feed URLs are validated to prevent internal network access
+- **Rate Limiting** - Login and API endpoints are rate-limited
+- **Secure Sessions** - HttpOnly, Secure, SameSite cookies
+- **Input Validation** - Comprehensive server-side validation
+- **SQL Injection Prevention** - All queries use prepared statements
+
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for complete security details.
+
+## Security
+
+VibeReader implements comprehensive security measures:
+
+- **HTML Sanitization** - Server-side (HTMLPurifier) and client-side (DOMPurify) sanitization to prevent XSS attacks
+- **CSRF Protection** - All state-changing operations protected
+- **SSRF Protection** - Feed URL validation prevents access to internal IPs
+- **Rate Limiting** - Prevents brute force attacks
+- **Secure Sessions** - HttpOnly, Secure, SameSite cookies
+- **Input Validation** - Comprehensive validation on all inputs
+
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for detailed security information and [HTML_SANITIZATION.md](HTML_SANITIZATION.md) for sanitization details.
+
 ## Future Enhancements
 
 - Support for MySQL database (currently uses PostgreSQL in Docker)

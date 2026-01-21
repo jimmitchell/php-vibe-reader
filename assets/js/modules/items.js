@@ -241,12 +241,21 @@ function renderItemContent(item) {
         </div>
     ` : `<div class="item-content-meta">${metaContent}</div>`;
 
+    // Sanitize HTML content with DOMPurify if available (defense in depth)
+    const sanitizedContent = (typeof DOMPurify !== 'undefined') 
+        ? DOMPurify.sanitize(content, { 
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+            ALLOWED_ATTR: ['href', 'title', 'target', 'src', 'alt', 'width', 'height', 'style', 'rel'],
+            ALLOW_DATA_ATTR: false
+        })
+        : content; // Fallback if DOMPurify not loaded
+    
     itemContent.innerHTML = `
         <div class="item-content-body">
             ${titleRow}
             ${metaRow}
             <div class="item-content-text">
-                ${content}
+                ${sanitizedContent}
             </div>
         </div>
     `;

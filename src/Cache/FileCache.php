@@ -61,7 +61,12 @@ class FileCache implements CacheInterface
             return $default;
         }
 
-        $data = json_decode(file_get_contents($file), true);
+        $fileContent = file_get_contents($file);
+        if ($fileContent === false) {
+            return $default;
+        }
+
+        $data = \PhpRss\Utils::safeJsonDecode($fileContent, $default, true);
 
         if ($data === null) {
             return $default;
@@ -134,7 +139,12 @@ class FileCache implements CacheInterface
         }
 
         // Check expiration
-        $data = json_decode(file_get_contents($file), true);
+        $fileContent = file_get_contents($file);
+        if ($fileContent === false) {
+            return false;
+        }
+
+        $data = \PhpRss\Utils::safeJsonDecode($fileContent, null, true);
         if ($data === null || (isset($data['expires']) && $data['expires'] < time())) {
             unlink($file);
 
@@ -166,7 +176,7 @@ class FileCache implements CacheInterface
                     continue;
                 }
 
-                $data = json_decode($content, true);
+                $data = \PhpRss\Utils::safeJsonDecode($content, null, true);
                 if ($data !== null && isset($data['key']) && strpos($data['key'], $prefix) === 0) {
                     if (unlink($file)) {
                         $count++;

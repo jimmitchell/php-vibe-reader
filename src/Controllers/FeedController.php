@@ -731,7 +731,8 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rawInput = file_get_contents('php://input');
+        $input = \PhpRss\Utils::safeJsonDecode($rawInput !== false ? $rawInput : '', [], true);
         $order = $input['order'] ?? [];
         if (! is_array($order) || empty($order)) {
             Response::error('Order array required', 400);
@@ -787,7 +788,8 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rawInput = file_get_contents('php://input');
+        $input = \PhpRss\Utils::safeJsonDecode($rawInput !== false ? $rawInput : '', [], true);
         $timezone = $input['timezone'] ?? null;
         $defaultThemeMode = $input['default_theme_mode'] ?? null;
         $fontFamily = $input['font_family'] ?? null;
@@ -898,7 +900,8 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rawInput = file_get_contents('php://input');
+        $input = \PhpRss\Utils::safeJsonDecode($rawInput !== false ? $rawInput : '', [], true);
         $name = trim($input['name'] ?? '');
 
         if (empty($name)) {
@@ -954,7 +957,8 @@ class FeedController
             return;
         }
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rawInput = file_get_contents('php://input');
+        $input = \PhpRss\Utils::safeJsonDecode($rawInput !== false ? $rawInput : '', [], true);
         $name = trim($input['name'] ?? '');
 
         if (empty($name)) {
@@ -1050,7 +1054,8 @@ class FeedController
         // Validate CSRF token
         Csrf::requireValid();
 
-        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rawInput = file_get_contents('php://input');
+        $input = \PhpRss\Utils::safeJsonDecode($rawInput !== false ? $rawInput : '', [], true);
         $feedId = $input['feed_id'] ?? null;
         $folderId = $input['folder_id'] ?? null; // null means remove from folder
 

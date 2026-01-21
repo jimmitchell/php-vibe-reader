@@ -71,7 +71,7 @@ class RedisCache implements CacheInterface
             return $default;
         }
 
-        return json_decode($value, true) ?? $default;
+        return \PhpRss\Utils::safeJsonDecode($value, $default, true);
     }
 
     /**

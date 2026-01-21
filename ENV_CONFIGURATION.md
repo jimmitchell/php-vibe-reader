@@ -78,6 +78,13 @@ RATE_LIMIT_API_WINDOW=60                 # Seconds (1 minute)
 CACHE_ENABLED=1                           # 0 = disabled, 1 = enabled
 CACHE_DRIVER=file                         # file or redis
 CACHE_TTL=300                             # Seconds (5 minutes)
+```
+
+## HTML Sanitization
+
+```bash
+SANITIZATION_ENABLED=1                    # 0 = disabled, 1 = enabled (default: enabled)
+```
 CACHE_PATH=data/cache                     # File cache only
 ```
 

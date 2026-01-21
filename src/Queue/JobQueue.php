@@ -171,8 +171,35 @@ class JobQueue
 
             $db->commit();
 
-            // Decode payload
-            $job['payload'] = json_decode($job['payload'], true);
+            // Decode payload with error handling
+            // Use a sentinel value to detect decode errors (since payload could be an empty array)
+            $sentinel = new \stdClass();
+            $decodedPayload = \PhpRss\Utils::safeJsonDecode($job['payload'], $sentinel, true);
+            
+            // If we got the sentinel, decoding failed
+            if ($decodedPayload === $sentinel) {
+                Logger::warning("Failed to decode job payload", [
+                    'job_id' => $job['id'],
+                    'job_type' => $job['type'],
+                    'payload_preview' => substr($job['payload'], 0, 100),
+                ]);
+                $db->rollBack();
+                
+                return null;
+            }
+            
+            // Ensure payload is an array
+            if (! is_array($decodedPayload)) {
+                Logger::warning("Job payload is not an array", [
+                    'job_id' => $job['id'],
+                    'job_type' => $job['type'],
+                ]);
+                $db->rollBack();
+                
+                return null;
+            }
+            
+            $job['payload'] = $decodedPayload;
 
             return $job;
         } catch (\Exception $e) {

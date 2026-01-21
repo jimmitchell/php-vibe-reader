@@ -12,3 +12,4 @@ logs/
 data/cache/
 .php-cs-fixer.cache
 .phpstan/
+var/htmlpurifier/

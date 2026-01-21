@@ -2,6 +2,8 @@
 
 namespace PhpRss;
 
+use PhpRss\Utils\HtmlSanitizer;
+
 /**
  * Feed parsing class for RSS, Atom, and JSON Feed formats.
  *
@@ -52,7 +54,7 @@ class FeedParser
     public static function detectFeedType(string $content): string
     {
         // Check for JSON Feed (look for JSON structure with feed-like properties)
-        $json = json_decode($content, true);
+        $json = \PhpRss\Utils::safeJsonDecode($content, null, true);
         if ($json !== null && is_array($json)) {
             // JSON Feed spec: should have 'version' and 'items' or 'title' and 'items'
             if ((isset($json['version']) && (strpos($json['version'], 'jsonfeed.org') !== false || $json['version'] === '1'))
@@ -127,8 +129,8 @@ class FeedParser
         }
 
         $feed = [
-            'title' => (string)($xml->channel->title ?? 'Untitled Feed'),
-            'description' => (string)($xml->channel->description ?? ''),
+            'title' => HtmlSanitizer::sanitizeText((string)($xml->channel->title ?? 'Untitled Feed')),
+            'description' => HtmlSanitizer::sanitize((string)($xml->channel->description ?? '')),
             'link' => (string)($xml->channel->link ?? $url),
             'items' => [],
         ];
@@ -172,11 +174,11 @@ class FeedParser
                 // Try basic parsing without namespaces
                 try {
                     $feed['items'][] = [
-                        'title' => (string)($item->title ?? 'Untitled'),
+                        'title' => HtmlSanitizer::sanitizeText((string)($item->title ?? 'Untitled')),
                         'link' => (string)($item->link ?? ''),
-                        'content' => (string)($item->description ?? ''),
-                        'summary' => (string)($item->description ?? ''),
-                        'author' => (string)($item->author ?? ''),
+                        'content' => HtmlSanitizer::sanitize((string)($item->description ?? '')),
+                        'summary' => HtmlSanitizer::sanitize((string)($item->description ?? '')),
+                        'author' => HtmlSanitizer::sanitizeText((string)($item->author ?? '')),
                         'published_at' => self::parseDate((string)($item->pubDate ?? '')),
                         'guid' => (string)($item->guid ?? $item->link ?? uniqid()),
                     ];
@@ -268,11 +270,11 @@ class FeedParser
         }
 
         return [
-            'title' => (string)($item->title ?? 'Untitled'),
+            'title' => HtmlSanitizer::sanitizeText((string)($item->title ?? 'Untitled')),
             'link' => (string)($item->link ?? ''),
-            'content' => $contentEncoded,
-            'summary' => (string)($item->description ?? ''),
-            'author' => $author,
+            'content' => HtmlSanitizer::sanitize($contentEncoded),
+            'summary' => HtmlSanitizer::sanitize((string)($item->description ?? '')),
+            'author' => HtmlSanitizer::sanitizeText($author),
             'published_at' => self::parseDate((string)($item->pubDate ?? '')),
             'guid' => (string)($item->guid ?? $item->link ?? uniqid()),
         ];
@@ -299,8 +301,8 @@ class FeedParser
         }
 
         $feed = [
-            'title' => (string)($xml->title ?? 'Untitled Feed'),
-            'description' => (string)($xml->subtitle ?? ''),
+            'title' => HtmlSanitizer::sanitizeText((string)($xml->title ?? 'Untitled Feed')),
+            'description' => HtmlSanitizer::sanitize((string)($xml->subtitle ?? '')),
             'link' => (string)($xml->link['href'] ?? $url),
             'items' => [],
         ];
@@ -312,11 +314,11 @@ class FeedParser
             }
 
             $feed['items'][] = [
-                'title' => (string)($entry->title ?? 'Untitled'),
+                'title' => HtmlSanitizer::sanitizeText((string)($entry->title ?? 'Untitled')),
                 'link' => $link,
-                'content' => (string)($entry->content ?? $entry->summary ?? ''),
-                'summary' => (string)($entry->summary ?? ''),
-                'author' => (string)($entry->author->name ?? ''),
+                'content' => HtmlSanitizer::sanitize((string)($entry->content ?? $entry->summary ?? '')),
+                'summary' => HtmlSanitizer::sanitize((string)($entry->summary ?? '')),
+                'author' => HtmlSanitizer::sanitizeText((string)($entry->author->name ?? '')),
                 'published_at' => self::parseDate((string)($entry->published ?? $entry->updated ?? '')),
                 'guid' => (string)($entry->id ?? ($link ?: uniqid())),
             ];
@@ -338,26 +340,27 @@ class FeedParser
      */
     private static function parseJSON(string $content, string $url): array
     {
-        $json = json_decode($content, true);
+        $json = \PhpRss\Utils::safeJsonDecode($content, null, true);
 
-        if ($json === null) {
-            throw new \Exception("Failed to parse JSON feed");
+        if ($json === null || ! is_array($json)) {
+            $error = json_last_error_msg();
+            throw new \Exception("Failed to parse JSON feed: " . ($error ?: 'Invalid JSON format'));
         }
 
         $feed = [
-            'title' => $json['title'] ?? 'Untitled Feed',
-            'description' => $json['description'] ?? '',
+            'title' => HtmlSanitizer::sanitizeText($json['title'] ?? 'Untitled Feed'),
+            'description' => HtmlSanitizer::sanitize($json['description'] ?? ''),
             'link' => $json['home_page_url'] ?? $url,
             'items' => [],
         ];
 
         foreach ($json['items'] ?? [] as $item) {
             $feed['items'][] = [
-                'title' => $item['title'] ?? 'Untitled',
+                'title' => HtmlSanitizer::sanitizeText($item['title'] ?? 'Untitled'),
                 'link' => $item['url'] ?? '',
-                'content' => $item['content_html'] ?? $item['content_text'] ?? '',
-                'summary' => $item['summary'] ?? '',
-                'author' => $item['author']['name'] ?? '',
+                'content' => HtmlSanitizer::sanitize($item['content_html'] ?? $item['content_text'] ?? ''),
+                'summary' => HtmlSanitizer::sanitize($item['summary'] ?? ''),
+                'author' => HtmlSanitizer::sanitizeText($item['author']['name'] ?? ''),
                 'published_at' => self::parseDate($item['date_published'] ?? ''),
                 'guid' => $item['id'] ?? $item['url'] ?? uniqid(),
             ];
