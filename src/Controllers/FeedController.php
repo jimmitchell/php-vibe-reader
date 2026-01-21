@@ -523,8 +523,15 @@ class FeedController
             return;
         }
 
-        // Check if background jobs are enabled
-        $useBackgroundJobs = Config::get('jobs.enabled', false);
+        // Check if this is a manual refresh (force immediate) or should use background jobs
+        // Check both GET (query params) and POST (body) for immediate parameter
+        $forceImmediate = false;
+        if (isset($_GET['immediate']) || isset($_POST['immediate'])) {
+            $value = $_POST['immediate'] ?? $_GET['immediate'] ?? 'false';
+            // Check for truthy values: 'true', '1', 'yes', 'on' (case-insensitive)
+            $forceImmediate = in_array(strtolower((string)$value), ['true', '1', 'yes', 'on'], true);
+        }
+        $useBackgroundJobs = Config::get('jobs.enabled', false) && ! $forceImmediate;
 
         if ($useBackgroundJobs) {
             // Queue the job for background processing
@@ -535,7 +542,7 @@ class FeedController
 
             Response::success(['job_id' => $jobId, 'message' => 'Feed update queued']);
         } else {
-            // Process synchronously (original behavior)
+            // Process synchronously (original behavior or forced immediate)
             if (FeedFetcher::updateFeed($feedId)) {
                 // Invalidate cache when feed is updated
                 FeedService::invalidateFeedCache($feedId);
@@ -1078,6 +1085,10 @@ class FeedController
 
         $stmt = $db->prepare("UPDATE feeds SET folder_id = ? WHERE id = ? AND user_id = ?");
         $stmt->execute([$folderId, $feedId, $user['id']]);
+
+        // Invalidate cache when feed folder changes
+        FeedService::invalidateFeedCache($feedId);
+        FeedService::invalidateUserCache($user['id']);
 
         Response::success();
     }

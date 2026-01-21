@@ -29,6 +29,7 @@ services:
       - ./assets:/var/www/html/assets
       - ./index.php:/var/www/html/index.php
       - ./worker.php:/var/www/html/worker.php
+      - ./scheduler.php:/var/www/html/scheduler.php
       - ./scripts:/var/www/html/scripts
       - ./phpstan.neon:/var/www/html/phpstan.neon
       - ./.php-cs-fixer.php:/var/www/html/.php-cs-fixer.php

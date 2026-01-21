@@ -56,9 +56,17 @@ async function refreshAllFeeds() {
         const feeds = await response.json();
         if (feeds.length === 0) return;
         // Fetch each feed in the background (don't await, run in parallel)
-        await Promise.all(feeds.map(feed => 
-            fetch(`/feeds/${feed.id}/fetch`, addCsrfToken({ method: 'POST' })).catch(() => {})
-        ));
+        // Use immediate=true to force synchronous refresh even if background jobs are enabled
+        await Promise.all(feeds.map(feed => {
+            // Create FormData with immediate flag first
+            const formData = new FormData();
+            formData.append('immediate', 'true');
+            
+            // Then add CSRF token
+            const options = addCsrfToken({ method: 'POST', body: formData });
+            
+            return fetch(`/feeds/${feed.id}/fetch`, options).catch(() => {});
+        }));
         // Reload feeds list to show updated counts
         if (typeof loadFeeds === 'function') {
             loadFeeds();
@@ -83,7 +91,15 @@ async function refreshFeed(feedId) {
     const btn = document.getElementById('refresh-feed-btn');
     if (btn) btn.disabled = true;
     try {
-        const response = await fetch(`/feeds/${feedId}/fetch`, addCsrfToken({ method: 'POST' }));
+        // Use immediate=true to force synchronous refresh even if background jobs are enabled
+        // Create FormData with immediate flag first
+        const formData = new FormData();
+        formData.append('immediate', 'true');
+        
+        // Then add CSRF token
+        const options = addCsrfToken({ method: 'POST', body: formData });
+        
+        const response = await fetch(`/feeds/${feedId}/fetch`, options);
         const result = await response.json();
         if (result.success && window.currentFeedId === feedId && typeof loadFeedItems === 'function') {
             await loadFeedItems(feedId);
@@ -205,12 +221,12 @@ function renderFeeds(feeds, allFolders = []) {
     // Add folder toggle handlers
     feedsList.querySelectorAll('.folder-header').forEach(header => {
         const toggle = header.querySelector('.folder-toggle');
+        const folderName = header.querySelector('.folder-name');
         const folderFeeds = header.parentElement.querySelector('.folder-feeds');
         const folderId = parseInt(header.dataset.folderId);
         if (toggle && folderFeeds && folderId) {
-            toggle.style.cursor = 'pointer';
-            
-            toggle.addEventListener('click', (e) => {
+            // Toggle function to be used by both toggle arrow and folder name
+            const toggleFolder = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 const isCollapsed = folderFeeds.classList.toggle('collapsed');
@@ -220,8 +236,23 @@ function renderFeeds(feeds, allFolders = []) {
                 } else {
                     window.collapsedFolders.delete(folderId);
                 }
-            });
+                // Save collapsed state to localStorage
+                if (typeof window.saveCollapsedFolders === 'function') {
+                    window.saveCollapsedFolders();
+                }
+            };
+            
+            // Make toggle arrow clickable
+            toggle.style.cursor = 'pointer';
+            toggle.addEventListener('click', toggleFolder);
+            
+            // Make folder name clickable to toggle
+            if (folderName) {
+                folderName.style.cursor = 'pointer';
+                folderName.addEventListener('click', toggleFolder);
+            }
 
+            // Prevent edit/delete buttons from triggering toggle
             header.querySelectorAll('.folder-edit-btn, .folder-delete-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => e.stopPropagation());
             });

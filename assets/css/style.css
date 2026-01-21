@@ -406,13 +406,40 @@ a.btn-icon {
 }
 
 .feeds-pane {
-    width: 250px;
+    width: var(--feeds-pane-width, 250px);
     min-width: 200px;
+    max-width: 600px;
 }
 
 .items-pane {
-    width: 400px;
+    width: var(--items-pane-width, 400px);
     min-width: 300px;
+    max-width: 800px;
+}
+
+/* Resizer between panes */
+.pane-resizer {
+    width: 4px;
+    background-color: var(--border);
+    cursor: col-resize;
+    user-select: none;
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+.pane-resizer:hover,
+.pane-resizer:active {
+    background-color: var(--primary-color);
+}
+
+.pane-resizer::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
 }
 
 .content-pane {

@@ -25,10 +25,37 @@ let currentItemId = null;
 /** @type {Set<number>} Track which folders are collapsed */
 const collapsedFolders = new Set();
 
+// Load collapsed folder state from localStorage
+const loadCollapsedFolders = () => {
+    try {
+        const saved = localStorage.getItem('vibereader_collapsed_folders');
+        if (saved) {
+            const folderIds = JSON.parse(saved);
+            folderIds.forEach(id => collapsedFolders.add(Number(id)));
+        }
+    } catch (e) {
+        console.error('Error loading collapsed folders from localStorage:', e);
+    }
+};
+
+// Save collapsed folder state to localStorage
+const saveCollapsedFolders = () => {
+    try {
+        const folderIds = Array.from(collapsedFolders);
+        localStorage.setItem('vibereader_collapsed_folders', JSON.stringify(folderIds));
+    } catch (e) {
+        console.error('Error saving collapsed folders to localStorage:', e);
+    }
+};
+
+// Load on initialization
+loadCollapsedFolders();
+
 // Make state available globally for modules
 window.currentFeedId = currentFeedId;
 window.currentItemId = currentItemId;
 window.collapsedFolders = collapsedFolders;
+window.saveCollapsedFolders = saveCollapsedFolders;
 
 // Initialize user preferences from server (set in dashboard.php)
 if (typeof hideReadItems === 'undefined') {
@@ -285,6 +312,11 @@ function setupEventListeners() {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize theme based on default_theme_mode
     initializeTheme();
+    
+    // Initialize pane resizers
+    if (typeof initPaneResizers === 'function') {
+        initPaneResizers();
+    }
     
     // Initialize button states
     if (typeof updateHideFeedsNoUnreadButton === 'function') {

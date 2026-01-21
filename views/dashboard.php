@@ -98,6 +98,9 @@
                 </div>
             </aside>
 
+            <!-- Resizer between feeds and items -->
+            <div class="pane-resizer" id="feeds-items-resizer" role="separator" aria-label="Resize feeds and items panes" aria-orientation="vertical"></div>
+
             <!-- Middle Pane: Feed Items -->
             <section class="items-pane">
                 <div class="pane-header">
@@ -127,6 +130,9 @@
                     <div class="empty-state">Select a feed from the left to view items</div>
                 </div>
             </section>
+
+            <!-- Resizer between items and content -->
+            <div class="pane-resizer" id="items-content-resizer" role="separator" aria-label="Resize items and content panes" aria-orientation="vertical"></div>
 
             <!-- Right Pane: Item Content -->
             <section class="content-pane">
@@ -237,6 +243,7 @@
     <script src="/assets/js/utils/toast.js"></script>
     <script src="/assets/js/utils/dateFormat.js"></script>
     <script src="/assets/js/utils/ui.js"></script>
+    <script src="/assets/js/utils/resizer.js"></script>
     
     <!-- Feature modules -->
     <script src="/assets/js/modules/feeds.js"></script>

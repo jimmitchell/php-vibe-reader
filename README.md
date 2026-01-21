@@ -120,10 +120,10 @@ php scripts/setup.php
 
 4. Configure your web server to point to the project directory. For development, you can use PHP's built-in server:
 ```bash
-php -S localhost:9999
+php -S localhost:8000
 ```
 
-5. Access the application at `http://localhost:9999`
+5. Access the application at `http://localhost:8000`
 
 ## Usage
 

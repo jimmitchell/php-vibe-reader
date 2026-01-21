@@ -76,6 +76,13 @@ async function deleteFolder(folderId) {
         const result = await response.json();
 
         if (result.success) {
+            // Remove folder from collapsed state
+            if (window.collapsedFolders && window.collapsedFolders.has(folderId)) {
+                window.collapsedFolders.delete(folderId);
+                if (typeof window.saveCollapsedFolders === 'function') {
+                    window.saveCollapsedFolders();
+                }
+            }
             loadFeeds();
         } else {
             showError('Error: ' + (result.error || 'Failed to delete folder'));

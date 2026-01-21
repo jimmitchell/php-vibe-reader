@@ -36,16 +36,32 @@ FEED_RETENTION_COUNT=         # Keep max N items per feed (empty = unlimited)
 
 ### Option 1: Cron Job (Recommended)
 
-Add a cron job to process the queue every 5 minutes:
+You need **two** cron jobs for the complete system:
 
+1. **Scheduler** - Queues feed refresh jobs (runs every 15-30 minutes):
+```bash
+*/15 * * * * cd /path/to/vibereader && php scheduler.php
+```
+
+2. **Worker** - Processes queued jobs (runs every 1-5 minutes):
 ```bash
 */5 * * * * cd /path/to/vibereader && php worker.php
 ```
 
-Or process more frequently:
+Or process worker more frequently:
 
 ```bash
 */1 * * * * cd /path/to/vibereader && php worker.php
+```
+
+**For Docker containers**, you can add these to your host's crontab:
+
+```bash
+# Schedule feed refreshes every 15 minutes
+*/15 * * * * docker exec vibereader php /var/www/html/scheduler.php
+
+# Process jobs every 5 minutes
+*/5 * * * * docker exec vibereader php /var/www/html/worker.php
 ```
 
 ### Option 2: Daemon Mode
@@ -198,8 +214,36 @@ $deleted = \PhpRss\Queue\JobQueue::cleanup(7); // Remove jobs older than 7 days
 ### Jobs Not Processing
 
 1. Check that `JOBS_ENABLED=1` in your `.env` file
-2. Verify the worker is running (check cron logs or process list)
+2. Verify both the scheduler and worker are running (check cron logs or process list)
 3. Check job status in database: `SELECT * FROM jobs WHERE status = 'pending'`
+4. Verify cron jobs are set up correctly (both scheduler and worker)
+
+### Feeds Not Refreshing Automatically
+
+1. **Check scheduler is running**: The scheduler script (`scheduler.php`) must be running via cron to queue refresh jobs
+2. **Check worker is running**: The worker script (`worker.php`) must be running via cron to process queued jobs
+3. **Check refresh interval**: Default is 15 minutes - feeds won't refresh if they were fetched more recently
+4. **Check for duplicate jobs**: The scheduler skips feeds that already have pending jobs
+5. **Verify database connection**: Both scripts need database access
+
+### Testing the Scheduler
+
+Run manually to test:
+
+```bash
+# Queue refresh jobs for feeds that need updating
+php scheduler.php
+
+# Process the queued jobs
+php worker.php
+```
+
+### Docker-Specific Issues
+
+If running in Docker, ensure:
+- Both scripts are accessible in the container (mounted volumes)
+- Cron jobs use `docker exec vibereader` to run scripts inside the container
+- Environment variables are set correctly in `docker-compose.yml`
 4. Review application logs for errors
 
 ### Jobs Failing
